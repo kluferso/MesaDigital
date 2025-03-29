@@ -100,7 +100,7 @@ def application(environ, start_response):
         ]
         
         start_response(status, headers)
-        return [b"Application is running normally"]
+        return [b"MesaDigital API is running"]
         
     except Exception as e:
         logging.error(f"Erro geral na aplicação: {str(e)}", exc_info=True)
