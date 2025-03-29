@@ -11,44 +11,31 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-def run_update_script():
-    """Executa o script de atualização com os comandos diretamente."""
+def run_git_pull():
+    """Executa git pull para atualizar o código."""
     try:
         home_dir = os.path.expanduser('~')
         project_dir = os.path.join(home_dir, 'MesaDigital')
         
-        # Comandos de atualização
-        commands = [
-            f'cd {project_dir}',
-            'git pull',
-            'npm install',
-            'npm run build',
-            'cd server',
-            'npm install'
-        ]
-        
-        # Executa os comandos
-        command_string = ' && '.join(commands)
-        logging.info(f"Executando comandos: {command_string}")
-        
+        # Executa git pull
+        logging.info("Executando git pull...")
         result = subprocess.run(
-            command_string,
-            shell=True,
+            ['git', 'pull'],
+            cwd=project_dir,
             check=True,
             capture_output=True,
-            text=True,
-            cwd=project_dir
+            text=True
         )
         
-        logging.info(f"Saída do comando: {result.stdout}")
+        logging.info(f"Saída do git pull: {result.stdout}")
         if result.stderr:
-            logging.warning(f"Erros: {result.stderr}")
+            logging.warning(f"Erros do git pull: {result.stderr}")
             
-        return True, "Update completed successfully"
+        return True, "Repository updated successfully"
     except subprocess.CalledProcessError as e:
-        logging.error(f"Erro ao executar comandos: {str(e)}")
+        logging.error(f"Erro ao executar git pull: {str(e)}")
         logging.error(f"Saída de erro: {e.stderr}")
-        return False, f"Error executing update: {str(e)}"
+        return False, f"Error updating repository: {str(e)}"
     except Exception as e:
         logging.error(f"Erro inesperado: {str(e)}")
         return False, f"Unexpected error: {str(e)}"
@@ -81,12 +68,12 @@ def application(environ, start_response):
                 # Log do corpo da requisição
                 logging.info(f"Corpo da requisição: {body.decode('utf-8')}")
                 
-                # Executar a atualização
-                success, message = run_update_script()
+                # Executar git pull
+                success, message = run_git_pull()
                 
                 if success:
                     status = '200 OK'
-                    response = b"Update completed successfully"
+                    response = b"Repository updated successfully"
                 else:
                     status = '500 Internal Server Error'
                     response = message.encode()
