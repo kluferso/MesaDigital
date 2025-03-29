@@ -196,6 +196,26 @@ io.on('connection', (socket) => {
   });
 });
 
+// Webhook para atualização automática do GitHub
+app.post('/git-webhook', express.json(), (req, res) => {
+  const { headers, body } = req;
+  
+  // Verificar se é um evento de push
+  if (headers['x-github-event'] !== 'push') {
+    return res.status(200).send('Evento ignorado');
+  }
+
+  // Executar script de atualização
+  const execSync = require('child_process').execSync;
+  try {
+    execSync('bash ~/update_app.sh', { stdio: 'inherit' });
+    res.status(200).send('Atualização concluída com sucesso');
+  } catch (error) {
+    console.error('Erro na atualização:', error);
+    res.status(500).send('Erro na atualização');
+  }
+});
+
 // Rota para servir o app React
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../build', 'index.html'));

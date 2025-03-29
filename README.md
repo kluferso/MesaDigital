@@ -85,44 +85,83 @@ This will start both the backend server (port 5000) and the frontend development
 ## Deployment on PythonAnywhere
 
 1. Create a PythonAnywhere account at https://www.pythonanywhere.com
-2. Upload the project:
+
+2. Open a Bash console in PythonAnywhere and clone the repository:
    ```bash
-   # Clone the repository in your PythonAnywhere home directory
    cd ~
    git clone https://github.com/kluferso/MesaDigital.git
    ```
 
-3. Create a virtual environment and install dependencies:
+3. Install Node.js:
    ```bash
-   # Navigate to project directory
-   cd ~/MesaDigital
+   # Install Node Version Manager (nvm)
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+   source ~/.bashrc
    
-   # Create and activate virtual environment
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   
-   # Try installing dependencies (will try both possible locations)
-   pip install -r requirements.txt || pip install -r server/requirements.txt
-   
-   # Verify installation was successful
-   python -c "import flask; print('Flask installed successfully!')"
+   # Install Node.js
+   nvm install 14
+   nvm use 14
    ```
 
-4. Configure Web App on PythonAnywhere:
-   - Go to Web tab
+4. Install project dependencies:
+   ```bash
+   cd ~/MesaDigital
+   npm install
+   
+   cd server
+   npm install
+   ```
+
+5. Build the React app:
+   ```bash
+   cd ~/MesaDigital
+   npm run build
+   ```
+
+6. Configure your PythonAnywhere web app:
+   - Go to the Web tab
    - Add a new web app
    - Choose Manual Configuration
-   - Select Python version (3.8 or later)
-   - Set source code directory: /home/kluferso/MesaDigital
-   - Set working directory: /home/kluferso/MesaDigital/server
-   - In the "Code" section, set WSGI configuration file path to: /home/kluferso/MesaDigital/server/wsgi.py
+   - Select Python 3.8
+   - Set the following paths:
+     - Source code: /home/$USERNAME/MesaDigital
+     - Working directory: /home/$USERNAME/MesaDigital/server
+     - WSGI configuration file: /home/$USERNAME/MesaDigital/server/wsgi.py
 
-5. Set up environment variables in PythonAnywhere:
-   - Go to the Files tab
-   - Create a .env file in the server directory
-   - Add your environment variables
+7. Configure static files:
+   - Add a new static files mapping:
+     - URL: /static/
+     - Directory: /home/$USERNAME/MesaDigital/build/
 
-6. Reload the web app
+8. Update WSGI configuration:
+   - Click on the WSGI configuration file link
+   - Replace the contents with the code from `server/wsgi.py`
+   - Save the file
+
+9. Start the web app:
+   - Click the green "Reload" button
+   - Your app should now be available at: http://$USERNAME.pythonanywhere.com
+
+## Troubleshooting PythonAnywhere Deployment
+
+1. Check the error logs:
+   - Go to the Web tab
+   - Click on the "Error log" link
+   - Look for any error messages
+
+2. Common issues:
+   - If the Node.js server doesn't start, check the "Server log" file
+   - If static files aren't loading, verify the paths in the Static Files section
+   - If you get CORS errors, check the allowed hosts in `server/index.js`
+
+3. Updating the deployment:
+   ```bash
+   cd ~/MesaDigital
+   git pull
+   npm install
+   npm run build
+   ```
+   Then reload the web app from the Web tab.
 
 ## GitHub Configuration
 

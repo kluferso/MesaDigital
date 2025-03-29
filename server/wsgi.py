@@ -1,14 +1,27 @@
 import os
 import sys
+import subprocess
 
-# Add your project directory to the sys.path
-project_home = '/home/yourusername/MesaDigital/server'
-if project_home not in sys.path:
-    sys.path.insert(0, project_home)
-
-# Import your application
-from index import app as application  # This assumes your Express app is exported as 'app'
-
-# This is the PythonAnywhere WSGI configuration
-if __name__ == '__main__':
-    application.run()
+def application(environ, start_response):
+    # Redirecionar todas as requisições para o servidor Node.js
+    status = '200 OK'
+    
+    # Iniciar o servidor Node.js se ainda não estiver rodando
+    if not hasattr(application, 'node_process'):
+        application.node_process = subprocess.Popen(
+            ['node', 'index.js'],
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+    
+    # Configurar headers CORS
+    headers = [
+        ('Content-type', 'text/plain'),
+        ('Access-Control-Allow-Origin', '*'),
+        ('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'),
+        ('Access-Control-Allow-Headers', 'Content-Type')
+    ]
+    
+    start_response(status, headers)
+    
+    # Retornar mensagem indicando que o servidor Node.js está rodando
+    return [b"Node.js server is running"]
