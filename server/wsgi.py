@@ -6,12 +6,27 @@ import logging
 from datetime import datetime
 
 # Configurar logging
-log_file = os.path.join(os.path.dirname(__file__), 'webhook.log')
-logging.basicConfig(
-    filename=log_file,
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+log_file = '/home/kluferso/MesaDigital/server/webhook.log'
+try:
+    # Tentar criar o arquivo de log se não existir
+    if not os.path.exists(log_file):
+        with open(log_file, 'w') as f:
+            f.write('Log file created\n')
+    
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    logging.info('Iniciando aplicação WSGI')
+except Exception as e:
+    # Se não conseguir criar o arquivo de log, usar stderr
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    logging.error(f'Erro ao configurar arquivo de log: {str(e)}')
 
 def log_request(environ):
     logging.info(f"Recebida requisição: {environ.get('PATH_INFO')}")
