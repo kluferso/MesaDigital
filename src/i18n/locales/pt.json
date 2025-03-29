@@ -1,0 +1,43 @@
+{
+  "login": {
+    "welcome": "Mesa Digital",
+    "name": "Nome",
+    "roomId": "ID da Sala",
+    "instrument": "Instrumento",
+    "enter": "Entrar",
+    "createRoom": "Criar Sala",
+    "joinRoom": "Entrar na Sala",
+    "instructions": "Digite seu nome e o ID da sala para entrar",
+    "fillAllFields": "Por favor, preencha todos os campos",
+    "errorFetchingRooms": "Erro ao carregar salas ativas",
+    "activeRooms": "{{count}} sala(s) ativa(s)",
+    "noActiveRooms": "Nenhuma sala disponível",
+    "refreshRooms": "Atualizar salas",
+    "connectionStatus": "Status da conexão",
+    "enableAudio": "Habilitar Áudio",
+    "enableVideo": "Habilitar Vídeo"
+  },
+  "room": {
+    "participants": "Participantes",
+    "chat": "Chat",
+    "sendMessage": "Enviar mensagem",
+    "leaveRoom": "Sair da Sala",
+    "toggleAudio": "Alternar Áudio",
+    "toggleVideo": "Alternar Vídeo",
+    "shareScreen": "Compartilhar Tela",
+    "stopSharing": "Parar Compartilhamento",
+    "settings": "Configurações",
+    "roomId": "ID da Sala: {{id}}"
+  },
+  "chat": {
+    "placeholder": "Digite sua mensagem...",
+    "send": "Enviar",
+    "newMessage": "Nova mensagem de {{name}}",
+    "you": "Você"
+  },
+  "errors": {
+    "mediaDevices": "Erro ao acessar dispositivos de mídia",
+    "connection": "Erro de conexão",
+    "unknown": "Ocorreu um erro desconhecido"
+  }
+}
