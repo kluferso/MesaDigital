@@ -5,28 +5,11 @@ import requests
 import logging
 from datetime import datetime
 
-# Configurar logging
-log_file = '/home/kluferso/MesaDigital/server/webhook.log'
-try:
-    # Tentar criar o arquivo de log se não existir
-    if not os.path.exists(log_file):
-        with open(log_file, 'w') as f:
-            f.write('Log file created\n')
-    
-    logging.basicConfig(
-        filename=log_file,
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-    logging.info('Iniciando aplicação WSGI')
-except Exception as e:
-    # Se não conseguir criar o arquivo de log, usar stderr
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
-    logging.error(f'Erro ao configurar arquivo de log: {str(e)}')
+# Configurar logging para o error.log do PythonAnywhere
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def log_request(environ):
     logging.info(f"Recebida requisição: {environ.get('PATH_INFO')}")
@@ -39,21 +22,11 @@ def log_request(environ):
 def application(environ, start_response):
     try:
         log_request(environ)
-        
-        # Configurar o endereço do servidor Node.js
-        node_server = 'http://localhost:8000'
-        
-        # Iniciar o servidor Node.js se ainda não estiver rodando
-        if not hasattr(application, 'node_process'):
-            logging.info("Iniciando servidor Node.js...")
-            application.node_process = subprocess.Popen(
-                ['node', 'index.js'],
-                cwd=os.path.dirname(os.path.abspath(__file__))
-            )
+        logging.info("Iniciando processamento da requisição")
         
         # Obter o caminho da requisição
         path_info = environ.get('PATH_INFO', '')
-        logging.info(f"Processando requisição para: {path_info}")
+        logging.info(f"Caminho da requisição: {path_info}")
         
         # Se for uma requisição para o webhook
         if path_info == '/git-webhook':
@@ -66,34 +39,32 @@ def application(environ, start_response):
                 # Log do corpo da requisição
                 logging.info(f"Corpo da requisição: {body.decode('utf-8')}")
                 
-                # Encaminhar a requisição para o servidor Node.js
-                headers = {
-                    'Content-Type': environ.get('CONTENT_TYPE', 'application/json'),
-                    'X-GitHub-Event': environ.get('HTTP_X_GITHUB_EVENT', ''),
-                    'X-Hub-Signature': environ.get('HTTP_X_HUB_SIGNATURE', ''),
-                    'X-GitHub-Delivery': environ.get('HTTP_X_GITHUB_DELIVERY', '')
-                }
+                # Executar o script de atualização diretamente
+                update_script = '/home/kluferso/MesaDigital/server/update_app.sh'
+                if os.path.exists(update_script):
+                    logging.info("Executando script de atualização")
+                    try:
+                        subprocess.run(['bash', update_script], check=True)
+                        status = '200 OK'
+                        response = b"Update completed successfully"
+                    except subprocess.CalledProcessError as e:
+                        logging.error(f"Erro ao executar script: {str(e)}")
+                        status = '500 Internal Server Error'
+                        response = f"Error executing script: {str(e)}".encode()
+                else:
+                    logging.error(f"Script não encontrado: {update_script}")
+                    status = '500 Internal Server Error'
+                    response = b"Update script not found"
                 
-                logging.info(f"Encaminhando para Node.js com headers: {headers}")
-                
-                response = requests.post(
-                    f'{node_server}/git-webhook',
-                    data=body,
-                    headers=headers
-                )
-                
-                logging.info(f"Resposta do Node.js: {response.status_code} - {response.text}")
-                
-                status = f'{response.status_code} {response.reason}'
-                response_headers = [('Content-Type', 'text/plain')]
-                start_response(status, response_headers)
-                return [response.content]
+                headers = [('Content-Type', 'text/plain')]
+                start_response(status, headers)
+                return [response]
                 
             except Exception as e:
                 logging.error(f"Erro ao processar webhook: {str(e)}", exc_info=True)
                 status = '500 Internal Server Error'
-                response_headers = [('Content-Type', 'text/plain')]
-                start_response(status, response_headers)
+                headers = [('Content-Type', 'text/plain')]
+                start_response(status, headers)
                 error_message = f"Erro ao processar webhook: {str(e)}"
                 return [error_message.encode()]
         
@@ -107,7 +78,7 @@ def application(environ, start_response):
         ]
         
         start_response(status, headers)
-        return [b"Node.js server is running"]
+        return [b"Application is running normally"]
         
     except Exception as e:
         logging.error(f"Erro geral na aplicação: {str(e)}", exc_info=True)
