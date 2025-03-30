@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import stat
 import requests
+import mimetypes
 
 # Configurar logging
 logging.basicConfig(
@@ -12,12 +13,60 @@ logging.basicConfig(
     filename='/home/kluferso/MesaDigital/server/webapp.log'
 )
 
+def serve_static_file(environ, start_response, path):
+    """Serve arquivos estáticos do build do React."""
+    try:
+        # Remove a barra inicial para tornar o path relativo
+        if path.startswith('/'):
+            path = path[1:]
+            
+        # Se for a raiz ou uma rota do React, serve o index.html
+        if path == '' or not path.startswith('static/'):
+            path = 'index.html'
+            
+        # Caminho completo do arquivo
+        file_path = os.path.join('/home/kluferso/MesaDigital/build', path)
+        
+        # Verifica se o arquivo existe
+        if not os.path.exists(file_path):
+            logging.error(f"Arquivo não encontrado: {file_path}")
+            status = '404 Not Found'
+            headers = [('Content-Type', 'text/plain')]
+            start_response(status, headers)
+            return [b"File not found"]
+            
+        # Determina o tipo MIME
+        content_type, _ = mimetypes.guess_type(file_path)
+        if not content_type:
+            content_type = 'application/octet-stream'
+            
+        # Lê o arquivo
+        with open(file_path, 'rb') as f:
+            content = f.read()
+            
+        # Envia a resposta
+        status = '200 OK'
+        headers = [('Content-Type', content_type)]
+        start_response(status, headers)
+        return [content]
+        
+    except Exception as e:
+        logging.error(f"Erro ao servir arquivo estático: {str(e)}", exc_info=True)
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'text/plain')]
+        start_response(status, headers)
+        return [b"Error serving static file"]
+
 def proxy_request(environ, start_response):
     """Encaminha a requisição para o servidor Node.js."""
     try:
         # Obtém o path da requisição
         path = environ.get('PATH_INFO', '')
         method = environ.get('REQUEST_METHOD', '')
+        
+        # Se for uma requisição de arquivo estático ou a raiz, serve o arquivo
+        if path == '/' or not path.startswith('/api/'):
+            return serve_static_file(environ, start_response, path)
         
         # URL base do servidor Node.js
         node_url = 'http://localhost:3000'
@@ -203,7 +252,7 @@ def application(environ, start_response):
                 error_message = f"Error processing webhook: {str(e)}"
                 return [error_message.encode()]
         
-        # Para outras requisições, encaminhar para o Node.js
+        # Para outras requisições, encaminhar para o Node.js ou servir arquivos estáticos
         return proxy_request(environ, start_response)
         
     except Exception as e:
