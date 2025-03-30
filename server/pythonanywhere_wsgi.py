@@ -82,7 +82,7 @@ def application(environ, start_response):
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return [b"MesaDigital Webhook Service - OK"]
+        return [b"MesaDigital Webhook Service - v1.0"]
         
     except Exception as e:
         # Log do erro
