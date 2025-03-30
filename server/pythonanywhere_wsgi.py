@@ -5,6 +5,7 @@ import shutil
 import stat
 import requests
 import mimetypes
+import json
 
 # Configurar logging
 logging.basicConfig(
@@ -80,6 +81,13 @@ def proxy_request(environ, start_response):
         # Obtém o path da requisição
         path = environ.get('PATH_INFO', '')
         method = environ.get('REQUEST_METHOD', '')
+        query_string = environ.get('QUERY_STRING', '')
+        
+        # Log detalhado da requisição
+        logging.info(f"Detalhes da requisição:")
+        logging.info(f"Path: {path}")
+        logging.info(f"Method: {method}")
+        logging.info(f"Query String: {query_string}")
         
         # Se for uma requisição de arquivo estático ou a raiz, serve o arquivo
         if path == '/' or (not path.startswith('/api/') and not path.startswith('/socket.io/')):
@@ -90,11 +98,22 @@ def proxy_request(environ, start_response):
         
         # Constrói a URL completa
         url = f"{node_url}{path}"
+        if query_string:
+            url = f"{url}?{query_string}"
+        
         logging.info(f"Encaminhando requisição para: {url}")
         
         # Obtém o corpo da requisição para POST/PUT
         content_length = int(environ.get('CONTENT_LENGTH', 0))
         body = environ['wsgi.input'].read(content_length) if content_length > 0 else None
+        
+        # Log do corpo da requisição se houver
+        if body:
+            try:
+                body_str = body.decode('utf-8')
+                logging.info(f"Corpo da requisição: {body_str}")
+            except:
+                logging.info("Corpo da requisição é binário")
         
         # Obtém os headers
         headers = {
@@ -102,6 +121,9 @@ def proxy_request(environ, start_response):
             for key, value in environ.items() 
             if key.startswith('HTTP_')
         }
+        
+        # Log dos headers
+        logging.info(f"Headers da requisição: {json.dumps(headers, indent=2)}")
         
         # Remove headers problemáticos
         headers.pop('HOST', None)
@@ -119,6 +141,10 @@ def proxy_request(environ, start_response):
             data=body,
             stream=True
         )
+        
+        # Log da resposta
+        logging.info(f"Status da resposta: {response.status_code}")
+        logging.info(f"Headers da resposta: {json.dumps(dict(response.headers), indent=2)}")
         
         # Prepara a resposta
         start_response(
@@ -240,7 +266,11 @@ def application(environ, start_response):
         # Log da requisição
         path = environ.get('PATH_INFO', '')
         method = environ.get('REQUEST_METHOD', '')
+        query_string = environ.get('QUERY_STRING', '')
+        
         logging.info(f"Recebida requisição {method} para {path}")
+        if query_string:
+            logging.info(f"Query string: {query_string}")
         
         # Se for uma requisição para o webhook
         if path == '/git-webhook':
