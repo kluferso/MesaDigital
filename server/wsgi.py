@@ -1,7 +1,6 @@
 import os
 import sys
 import subprocess
-import requests
 import logging
 from datetime import datetime
 
@@ -82,15 +81,9 @@ def application(environ, start_response):
         
         # Para outras requisições, retornar uma mensagem padrão
         status = '200 OK'
-        headers = [
-            ('Content-type', 'text/plain'),
-            ('Access-Control-Allow-Origin', '*'),
-            ('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'),
-            ('Access-Control-Allow-Headers', 'Content-Type')
-        ]
-        
+        headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return [b"MesaDigital API is running"]
+        return [b"MesaDigital Webhook Service"]
         
     except Exception as e:
         logging.error(f"Erro geral na aplicação: {str(e)}", exc_info=True)
