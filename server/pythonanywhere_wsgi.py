@@ -11,11 +11,13 @@ logging.basicConfig(
 def run_git_pull():
     """Executa git pull para atualizar o código."""
     try:
-        home_dir = os.path.expanduser('~')
-        project_dir = os.path.join(home_dir, 'MesaDigital')
+        # No PythonAnywhere, o diretório é /home/kluferso/MesaDigital
+        project_dir = '/home/kluferso/MesaDigital'
         
         # Executa git pull
         logging.info("Executando git pull...")
+        logging.info(f"Diretório do projeto: {project_dir}")
+        
         result = subprocess.run(
             ['git', 'pull'],
             cwd=project_dir,
