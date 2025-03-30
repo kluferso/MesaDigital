@@ -2,6 +2,7 @@ import os
 import logging
 import subprocess
 import shutil
+import stat
 
 # Configurar logging
 logging.basicConfig(
@@ -79,6 +80,9 @@ def run_git_pull():
         # Copia o arquivo WSGI atualizado
         logging.info(f"Copiando {wsgi_source} para {wsgi_target}")
         shutil.copy2(wsgi_source, wsgi_target)
+        
+        # Define as permissões corretas (644)
+        os.chmod(wsgi_target, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
         logging.info("Arquivo WSGI atualizado com sucesso!")
         
         # Recarrega o módulo atual
@@ -87,6 +91,13 @@ def run_git_pull():
             check=True
         )
         logging.info("Arquivo WSGI recarregado!")
+        
+        # Força o reload do servidor WSGI
+        subprocess.run(
+            ['touch', '/var/www/kluferso_pythonanywhere_com_wsgi.py'],
+            check=True
+        )
+        logging.info("Servidor WSGI recarregado!")
             
         return True, "Repository updated successfully"
     except subprocess.CalledProcessError as e:
@@ -142,7 +153,7 @@ def application(environ, start_response):
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return [b"MesaDigital Webhook Service - v1.7"]
+        return [b"MesaDigital Webhook Service - v1.8"]
         
     except Exception as e:
         # Log do erro
