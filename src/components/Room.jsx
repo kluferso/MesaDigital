@@ -195,8 +195,8 @@ function Room() {
           )}
 
           {/* Remote videos */}
-          {users
-            .filter(user => user.id !== socket?.id)
+          {users && Array.isArray(users) && users
+            .filter(user => user && user.id !== socket?.id)
             .map(user => {
               const remoteStream = remoteStreams[user.id];
               return (

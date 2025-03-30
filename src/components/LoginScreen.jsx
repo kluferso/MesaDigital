@@ -20,13 +20,36 @@ import {
   FormControlLabel,
   Switch,
   Stack,
-  Snackbar
+  Snackbar,
+  Avatar,
+  Grid,
+  useTheme,
+  useMediaQuery,
+  Card,
+  CardContent,
+  CardActionArea,
+  Chip,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  ListItemButton,
+  Divider,
+  Badge
 } from '@mui/material';
 import {
   MusicNote as MusicIcon,
   ContentCopy as CopyIcon,
   MicNone as MicIcon,
-  VideocamOutlined as CameraIcon
+  VideocamOutlined as CameraIcon,
+  Refresh as RefreshIcon,
+  Add as AddIcon,
+  Group as GroupIcon,
+  Person as PersonIcon,
+  AccessTime as TimeIcon,
+  Check as CheckIcon,
+  Lock as LockIcon,
+  LockOpen as UnlockIcon
 } from '@mui/icons-material';
 import { useSocket } from '../hooks/useSocket';
 
@@ -51,21 +74,23 @@ function TabPanel(props) {
 }
 
 const instruments = [
-  'Violão',
-  'Guitarra',
-  'Baixo',
-  'Bateria',
-  'Teclado',
-  'Voz',
-  'Violino',
-  'Saxofone',
-  'Trompete',
-  'Outro'
+  { id: 'violao', name: 'Violão', icon: '/images/instruments/guitar.svg', color: '#8B4513' },
+  { id: 'guitarra', name: 'Guitarra', icon: '/images/instruments/guitar.svg', color: '#DC143C' },
+  { id: 'baixo', name: 'Baixo', icon: '/images/instruments/guitar.svg', color: '#4169E1' },
+  { id: 'bateria', name: 'Bateria', icon: '/images/instruments/drums.svg', color: '#FF8C00' },
+  { id: 'teclado', name: 'Teclado', icon: '/images/instruments/keyboard.svg', color: '#4B0082' },
+  { id: 'voz', name: 'Voz', icon: '/images/instruments/vocal.svg', color: '#800080' },
+  { id: 'violino', name: 'Violino', icon: '/images/instruments/guitar.svg', color: '#B8860B' },
+  { id: 'saxofone', name: 'Saxofone', icon: '/images/instruments/guitar.svg', color: '#CD853F' },
+  { id: 'trompete', name: 'Trompete', icon: '/images/instruments/guitar.svg', color: '#FFD700' },
+  { id: 'outro', name: 'Outro', icon: '/images/instruments/guitar.svg', color: '#708090' }
 ];
 
 export default function LoginScreen() {
   const navigate = useNavigate();
   const { socket, connected, error: socketError } = useSocket();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [name, setName] = useState('');
   const [room, setRoom] = useState('');
@@ -74,8 +99,11 @@ export default function LoginScreen() {
   const [error, setError] = useState(null);
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
   const [tabValue, setTabValue] = useState(0);
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(false);
+  const [selectedInstrumentObj, setSelectedInstrumentObj] = useState(null);
+  const [activeRooms, setActiveRooms] = useState([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
 
   useEffect(() => {
     if (connected && socketError) {
@@ -87,7 +115,38 @@ export default function LoginScreen() {
 
   useEffect(() => {
     generateRoomId();
-  }, []);
+    
+    // Configurar os ouvintes para as salas ativas quando o socket estiver conectado
+    if (socket && connected) {
+      fetchActiveRooms();
+      
+      // Adicionar event listener para atualizações de salas ativas
+      socket.on('active_rooms_update', (rooms) => {
+        setActiveRooms(rooms);
+        setLoadingRooms(false);
+      });
+      
+      return () => {
+        socket.off('active_rooms_update');
+      };
+    }
+  }, [socket, connected]);
+
+  useEffect(() => {
+    if (instrument) {
+      const selected = instruments.find(inst => inst.id === instrument);
+      setSelectedInstrumentObj(selected);
+    } else {
+      setSelectedInstrumentObj(null);
+    }
+  }, [instrument]);
+
+  const fetchActiveRooms = () => {
+    if (!socket || !connected) return;
+    
+    setLoadingRooms(true);
+    socket.emit('get_active_rooms');
+  };
 
   const generateRoomId = () => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -207,7 +266,14 @@ export default function LoginScreen() {
     setTabValue(newValue);
     if (newValue === 0) {
       generateRoomId();
+    } else if (newValue === 1) {
+      fetchActiveRooms();
     }
+  };
+
+  const handleSelectRoom = (roomId) => {
+    setRoom(roomId);
+    setTabValue(2); // Mudar para a aba "Entrar em Sala"
   };
 
   const handleToggleAudio = async () => {
@@ -254,13 +320,65 @@ export default function LoginScreen() {
     }
   };
 
+  // Função para formatar a duração da sala
+  const formatRoomDuration = (createdAt) => {
+    if (!createdAt) return 'N/A';
+    
+    const now = new Date();
+    const created = new Date(createdAt);
+    const diffMs = now - created;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 60) {
+      return `${diffMins} min`;
+    } else {
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      return `${hours}h ${mins}min`;
+    }
+  };
+
   return (
-    <Container maxWidth="sm" sx={{ mt: 4 }}>
-      <Paper sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <MusicIcon sx={{ fontSize: 40, mr: 2 }} />
-          <Typography variant="h5">
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+      <Paper sx={{ p: 4, borderRadius: 2, boxShadow: 3 }}>
+        {/* Logo e Título */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          mb: 4 
+        }}>
+          <Box 
+            component="img"
+            src="/logo.svg"
+            alt="Mesa Digital"
+            sx={{ 
+              width: 120, 
+              height: 120, 
+              mb: 2,
+              filter: 'drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.2))',
+              transition: 'transform 0.3s ease-in-out',
+              '&:hover': {
+                transform: 'scale(1.05)'
+              }
+            }}
+          />
+          <Typography 
+            variant="h4" 
+            sx={{ 
+              fontWeight: 'bold', 
+              color: theme.palette.primary.main,
+              textAlign: 'center' 
+            }}
+          >
             Mesa Digital
+          </Typography>
+          <Typography 
+            variant="subtitle1" 
+            color="text.secondary" 
+            sx={{ mt: 1, textAlign: 'center' }}
+          >
+            Colaboração musical em tempo real
           </Typography>
         </Box>
 
@@ -272,168 +390,445 @@ export default function LoginScreen() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             margin="normal"
+            InputProps={{
+              sx: { borderRadius: 2 }
+            }}
           />
 
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Instrumento</InputLabel>
-            <Select
-              value={instrument}
-              onChange={(e) => setInstrument(e.target.value)}
-              label="Instrumento"
-            >
-              {instruments.map((inst) => (
-                <MenuItem key={inst} value={inst}>
-                  {inst}
-                </MenuItem>
+          {/* Seleção de Instrumento com novo design */}
+          <Typography variant="subtitle1" sx={{ mt: 3, mb: 1 }}>
+            Selecione seu instrumento:
+          </Typography>
+          
+          <Card variant="outlined" sx={{ mb: 3, borderRadius: 2, overflow: 'auto', maxHeight: '200px' }}>
+            <List sx={{ py: 0 }}>
+              {instruments.map((inst, index) => (
+                <React.Fragment key={inst.id}>
+                  {index > 0 && <Divider component="li" />}
+                  <ListItemButton 
+                    selected={instrument === inst.id}
+                    onClick={() => setInstrument(inst.id)}
+                    sx={{ 
+                      py: 1,
+                      px: 2,
+                      transition: 'all 0.2s',
+                      '&.Mui-selected': {
+                        bgcolor: `${inst.color}20`,
+                        '&:hover': {
+                          bgcolor: `${inst.color}30`,
+                        }
+                      }
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar 
+                        src={inst.icon}
+                        alt={inst.name}
+                        sx={{ 
+                          bgcolor: instrument === inst.id ? inst.color : 'rgba(0,0,0,0.1)',
+                          transition: 'all 0.3s'
+                        }}
+                      >
+                        <MusicIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary={inst.name}
+                      primaryTypographyProps={{
+                        fontWeight: instrument === inst.id ? 'bold' : 'regular'
+                      }}
+                    />
+                    {instrument === inst.id && (
+                      <CheckIcon color="primary" />
+                    )}
+                  </ListItemButton>
+                </React.Fragment>
               ))}
-            </Select>
-          </FormControl>
+            </List>
+          </Card>
 
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3 }}>
-            <Tabs value={tabValue} onChange={handleTabChange}>
-              <Tab label="Criar Nova Sala" />
-              <Tab label="Entrar em Sala" />
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange}
+              variant="fullWidth"
+              indicatorColor="primary"
+              textColor="primary"
+              sx={{ 
+                '& .MuiTab-root': { 
+                  fontWeight: 'medium',
+                  borderRadius: '8px 8px 0 0',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    bgcolor: 'rgba(25, 118, 210, 0.04)',
+                  },
+                }
+              }}
+            >
+              <Tab 
+                label="Criar Nova Sala" 
+                icon={<AddIcon />} 
+                iconPosition="start"
+              />
+              <Tab 
+                label="Salas Ativas" 
+                icon={<GroupIcon />}
+                iconPosition="start" 
+              />
+              <Tab 
+                label="Entrar em Sala" 
+                icon={<MusicIcon />}
+                iconPosition="start" 
+              />
             </Tabs>
           </Box>
 
           <TabPanel value={tabValue} index={0}>
-            <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-              <TextField
-                fullWidth
-                label="Código da sala"
-                value={room}
-                onChange={(e) => setRoom(e.target.value.toUpperCase())}
-              />
-              <Tooltip title={copiedToClipboard ? "Copiado!" : "Copiar código"}>
-                <IconButton 
-                  onClick={handleCopyRoomId}
-                  color={copiedToClipboard ? "success" : "default"}
-                >
-                  <CopyIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
             <Box sx={{ 
+              bgcolor: 'background.paper', 
               p: 2, 
-              bgcolor: 'background.default', 
-              borderRadius: 1,
-              mb: 3
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
             }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Dispositivos de Mídia
-              </Typography>
-              <Stack spacing={1}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                <Typography variant="body1" fontWeight="medium">
+                  ID da Sala:
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    bgcolor: 'action.hover', 
+                    px: 2, 
+                    py: 1, 
+                    borderRadius: 1,
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    letterSpacing: 1,
+                    flexGrow: 1,
+                    textAlign: 'center'
+                  }}
+                >
+                  {room}
+                </Typography>
+                <Tooltip title="Copiar ID da Sala">
+                  <IconButton onClick={handleCopyRoomId} color="primary">
+                    <CopyIcon />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+
+              <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
                 <FormControlLabel
                   control={
                     <Switch 
                       checked={audioEnabled}
                       onChange={handleToggleAudio}
-                      icon={<MicIcon />}
-                      checkedIcon={<MicIcon />}
+                      color="primary"
                     />
                   }
-                  label="Microfone"
+                  label={
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <MicIcon color={audioEnabled ? "primary" : "disabled"} />
+                      <Typography variant="body2">
+                        {audioEnabled ? "Microfone ativado" : "Microfone desativado"}
+                      </Typography>
+                    </Stack>
+                  }
                 />
+              </Stack>
+
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                 <FormControlLabel
                   control={
                     <Switch 
                       checked={videoEnabled}
                       onChange={handleToggleVideo}
-                      icon={<CameraIcon />}
-                      checkedIcon={<CameraIcon />}
+                      color="primary"
                     />
                   }
-                  label="Câmera"
+                  label={
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CameraIcon color={videoEnabled ? "primary" : "disabled"} />
+                      <Typography variant="body2">
+                        {videoEnabled ? "Câmera ativada" : "Câmera desativada"}
+                      </Typography>
+                    </Stack>
+                  }
                 />
-                <Typography variant="caption" color="text.secondary">
-                  Você pode alterar essas configurações depois de entrar na sala
-                </Typography>
               </Stack>
             </Box>
 
             <Button
-              fullWidth
               variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
               onClick={handleCreateRoom}
-              disabled={isLoading || !connected}
+              disabled={isLoading || !name || !instrument}
+              sx={{ 
+                mt: 3,
+                py: 1.5,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 'bold',
+                fontSize: '1rem',
+                boxShadow: 3,
+                '&:hover': {
+                  boxShadow: 5,
+                },
+              }}
+              startIcon={isLoading ? <CircularProgress size={24} color="inherit" /> : null}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Criar Nova Sala'}
+              {isLoading ? 'Criando Sala...' : 'Criar e Entrar'}
             </Button>
           </TabPanel>
 
           <TabPanel value={tabValue} index={1}>
-            <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+            <Box sx={{ position: 'relative' }}>
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                mb: 2
+              }}>
+                <Typography variant="h6">
+                  Salas Disponíveis
+                </Typography>
+                <Tooltip title="Atualizar lista de salas">
+                  <IconButton onClick={fetchActiveRooms} disabled={loadingRooms}>
+                    {loadingRooms ? (
+                      <CircularProgress size={24} />
+                    ) : (
+                      <RefreshIcon />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              {activeRooms.length === 0 ? (
+                <Box sx={{ 
+                  p: 4, 
+                  textAlign: 'center', 
+                  bgcolor: 'background.paper',
+                  borderRadius: 2,
+                  border: '1px dashed',
+                  borderColor: 'divider'
+                }}>
+                  <Typography color="text.secondary">
+                    {loadingRooms ? 'Carregando salas...' : 'Nenhuma sala ativa no momento'}
+                  </Typography>
+                  {!loadingRooms && (
+                    <Button 
+                      variant="outlined" 
+                      startIcon={<AddIcon />} 
+                      sx={{ mt: 2 }}
+                      onClick={() => setTabValue(0)}
+                    >
+                      Criar uma sala
+                    </Button>
+                  )}
+                </Box>
+              ) : (
+                <Box sx={{ 
+                  maxHeight: 300, 
+                  overflowY: 'auto',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                }}>
+                  <List sx={{ p: 0 }}>
+                    {activeRooms.map((activeRoom, index) => (
+                      <React.Fragment key={activeRoom.id}>
+                        {index > 0 && <Divider />}
+                        <ListItemButton
+                          onClick={() => handleSelectRoom(activeRoom.id)}
+                          sx={{ 
+                            py: 2,
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                            }
+                          }}
+                        >
+                          <ListItemAvatar>
+                            <Badge
+                              badgeContent={activeRoom.users.length}
+                              color="primary"
+                              overlap="circular"
+                              anchorOrigin={{
+                                vertical: 'bottom',
+                                horizontal: 'right',
+                              }}
+                            >
+                              <Avatar sx={{ bgcolor: activeRoom.private ? 'warning.main' : 'success.main' }}>
+                                {activeRoom.private ? <LockIcon /> : <GroupIcon />}
+                              </Avatar>
+                            </Badge>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                                  Sala {activeRoom.id}
+                                </Typography>
+                                {activeRoom.private && (
+                                  <Chip 
+                                    label="Privada" 
+                                    size="small"
+                                    icon={<LockIcon fontSize="small" />}
+                                    color="warning"
+                                    variant="outlined"
+                                  />
+                                )}
+                              </Box>
+                            }
+                            secondary={
+                              <Box sx={{ display: 'flex', flexDirection: 'column', mt: 0.5 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <PersonIcon fontSize="small" color="action" />
+                                  <Typography variant="body2" color="text.secondary">
+                                    {activeRoom.users.length} participante{activeRoom.users.length !== 1 ? 's' : ''}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                  <TimeIcon fontSize="small" color="action" />
+                                  <Typography variant="body2" color="text.secondary">
+                                    Ativa há {formatRoomDuration(activeRoom.createdAt)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            }
+                          />
+                          <Button 
+                            variant="outlined" 
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectRoom(activeRoom.id);
+                            }}
+                            sx={{ minWidth: '100px' }}
+                          >
+                            Entrar
+                          </Button>
+                        </ListItemButton>
+                      </React.Fragment>
+                    ))}
+                  </List>
+                </Box>
+              )}
+            </Box>
+          </TabPanel>
+
+          <TabPanel value={tabValue} index={2}>
+            <Box sx={{ 
+              bgcolor: 'background.paper', 
+              p: 2, 
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
+            }}>
               <TextField
                 fullWidth
-                label="Código da sala"
+                required
+                label="ID da Sala"
                 value={room}
                 onChange={(e) => setRoom(e.target.value.toUpperCase())}
+                margin="normal"
+                placeholder="Digite o ID da sala"
+                InputProps={{
+                  sx: { borderRadius: 2 }
+                }}
               />
-            </Box>
 
-            <Box sx={{ 
-              p: 2, 
-              bgcolor: 'background.default', 
-              borderRadius: 1,
-              mb: 3
-            }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Dispositivos de Mídia
-              </Typography>
-              <Stack spacing={1}>
+              <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
                 <FormControlLabel
                   control={
                     <Switch 
                       checked={audioEnabled}
                       onChange={handleToggleAudio}
-                      icon={<MicIcon />}
-                      checkedIcon={<MicIcon />}
+                      color="primary"
                     />
                   }
-                  label="Microfone"
+                  label={
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <MicIcon color={audioEnabled ? "primary" : "disabled"} />
+                      <Typography variant="body2">
+                        {audioEnabled ? "Microfone ativado" : "Microfone desativado"}
+                      </Typography>
+                    </Stack>
+                  }
                 />
+              </Stack>
+
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                 <FormControlLabel
                   control={
                     <Switch 
                       checked={videoEnabled}
                       onChange={handleToggleVideo}
-                      icon={<CameraIcon />}
-                      checkedIcon={<CameraIcon />}
+                      color="primary"
                     />
                   }
-                  label="Câmera"
+                  label={
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CameraIcon color={videoEnabled ? "primary" : "disabled"} />
+                      <Typography variant="body2">
+                        {videoEnabled ? "Câmera ativada" : "Câmera desativada"}
+                      </Typography>
+                    </Stack>
+                  }
                 />
-                <Typography variant="caption" color="text.secondary">
-                  Você pode alterar essas configurações depois de entrar na sala
-                </Typography>
               </Stack>
             </Box>
 
             <Button
-              fullWidth
               variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
               onClick={handleJoinRoom}
-              disabled={isLoading || !connected}
+              disabled={isLoading || !name || !instrument || !room}
+              sx={{ 
+                mt: 3,
+                py: 1.5,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 'bold',
+                fontSize: '1rem',
+                boxShadow: 3,
+                '&:hover': {
+                  boxShadow: 5,
+                },
+              }}
+              startIcon={isLoading ? <CircularProgress size={24} color="inherit" /> : null}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Entrar na Sala'}
+              {isLoading ? 'Entrando...' : 'Entrar na Sala'}
             </Button>
           </TabPanel>
-
-          {error && (
-            <Snackbar 
-              open={!!error} 
-              autoHideDuration={6000} 
-              onClose={() => setError('')}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-              <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
-                {error}
-              </Alert>
-            </Snackbar>
-          )}
         </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mt: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {socketError && (
+          <Alert severity="warning" sx={{ mt: 3 }}>
+            {socketError}
+          </Alert>
+        )}
       </Paper>
+
+      <Snackbar
+        open={copiedToClipboard}
+        autoHideDuration={2000}
+        message="ID da sala copiado para a área de transferência"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Container>
   );
 }

@@ -16,7 +16,10 @@ import {
   Step,
   StepLabel,
   StepContent,
-  IconButton
+  IconButton,
+  Drawer,
+  Tooltip,
+  Badge
 } from '@mui/material';
 import {
   Mic as MicIcon,
@@ -30,13 +33,19 @@ import {
   Person as PersonIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Pending as PendingIcon
+  Pending as PendingIcon,
+  Fullscreen as FullscreenIcon,
+  Close as CloseIcon,
+  ScreenShare as ScreenShareIcon,
+  Chat as ChatIcon,
+  GraphicEq as GraphicEqIcon
 } from '@mui/icons-material';
 
 import { useSocket } from '../hooks/useSocket';
 import useWebRTC from '../hooks/useWebRTC';
 import AudioMixer from './AudioMixer';
 import VideoGrid from './VideoGrid';
+import ChatBox from './ChatBox';
 
 const RoomScreen = () => {
   const { roomId } = useParams();
@@ -51,6 +60,9 @@ const RoomScreen = () => {
   const [initAttempts, setInitAttempts] = useState(0);
   const [initializationStep, setInitializationStep] = useState(0); // 0: Connect, 1: Media, 2: Join Room
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMixerOpen, setIsMixerOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [localUserData] = useState(() => {
     const state = location.state || {};
     return {
@@ -233,7 +245,7 @@ const RoomScreen = () => {
 
     const handleUserLeft = ({ userId }) => {
       console.log('Usuário saiu:', userId);
-      setParticipants(prev => prev.filter(p => p.id !== userId));
+      setParticipants(prev => Array.isArray(prev) ? prev.filter(p => p && p.id !== userId) : []);
       // Lógica WebRTC para desconectar do usuário seria feita aqui
     };
 
@@ -260,6 +272,30 @@ const RoomScreen = () => {
     };
 
   }, [socket, connected, initializationStep, updateParticipantList, remoteStreams]);
+
+  // Configurar listener de mensagens do chat
+  useEffect(() => {
+    if (!socket || !connected) return;
+
+    const handleNewMessage = (message) => {
+      if (!isChatOpen) {
+        setUnreadMessages(prev => prev + 1);
+      }
+    };
+
+    socket.on('chat_message', handleNewMessage);
+
+    return () => {
+      socket.off('chat_message', handleNewMessage);
+    };
+  }, [socket, connected, isChatOpen]);
+
+  // Resetar contador de mensagens não lidas quando o chat é aberto
+  useEffect(() => {
+    if (isChatOpen) {
+      setUnreadMessages(0);
+    }
+  }, [isChatOpen]);
 
   // Handler para tentar novamente em caso de erro
   const handleRetry = useCallback(() => {
@@ -365,8 +401,8 @@ const RoomScreen = () => {
   }
 
   // --- Tela Principal da Sala (após inicialização bem-sucedida) ---
-  if (!room) {
-    // Segurança: Se chegou aqui sem sala, mostrar erro
+  if (!room || !participants) {
+    // Segurança: Se chegou aqui sem sala ou participantes, mostrar erro
     return (
       <Container>
         <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -380,47 +416,244 @@ const RoomScreen = () => {
   const localParticipant = participants.find(p => p.isLocal);
 
   return (
-    <Container maxWidth="xl" sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
-      {/* Cabeçalho com nome da sala e botão de sair */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5">Sala: {room.id}</Typography>
-        {/* <Chip label={`${participants.length} participante(s)`} /> */} 
-        <Button 
-          variant="outlined" 
-          color="error" 
-          onClick={() => navigate('/')} // Navega para a home ao sair
-          startIcon={<ExitIcon />}
-        >
-          Sair da Sala
-        </Button>
+    <Box sx={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      bgcolor: 'black',
+      overflow: 'hidden'
+    }}>
+      {/* Cabeçalho simples */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        p: { xs: 1, sm: 1.5 },
+        bgcolor: '#1e1e1e',
+        zIndex: 5
+      }}>
+        <Typography variant="h6" sx={{ color: 'white', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+          Sala: {room.id}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <IconButton size="small" sx={{ color: 'white' }}>
+            <FullscreenIcon />
+          </IconButton>
+          <IconButton size="small" sx={{ color: 'white' }}>
+            <SettingsIcon />
+          </IconButton>
+        </Box>
       </Box>
 
-      {/* Layout Principal: Vídeos à esquerda, Mixer à direita */}
-      <Grid container spacing={2} sx={{ flexGrow: 1, overflow: 'hidden' }}>
-        {/* Grid de Vídeos */}
-        <Grid item xs={12} md={8} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Paper elevation={3} sx={{ flexGrow: 1, p: 1, overflowY: 'auto' }}>
-            <VideoGrid 
-              participants={participants}
-              localParticipantId={socket?.id}
-            />
-          </Paper>
-        </Grid>
+      {/* Área principal com vídeos em grade */}
+      <Box sx={{ 
+        flexGrow: 1, 
+        display: 'flex', 
+        overflow: 'hidden',
+        bgcolor: '#121212',
+        position: 'relative'
+      }}>
+        {/* Grade de vídeos */}
+        <Box sx={{ 
+          width: '100%',
+          height: '100%',
+          p: 1
+        }}>
+          <VideoGrid 
+            participants={participants}
+            localParticipantId={socket?.id}
+          />
+        </Box>
 
-        {/* Mixer de Áudio */}
-        <Grid item xs={12} md={4} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Paper elevation={3} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2, overflowY: 'auto' }}>
-            <Typography variant="h6" gutterBottom>Mixer de Áudio</Typography>
+        {/* Drawer de chat */}
+        <Drawer
+          anchor="right"
+          open={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          variant="persistent"
+          sx={{
+            width: isChatOpen ? 320 : 0,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': {
+              width: 320,
+              boxSizing: 'border-box',
+              bgcolor: '#1e1e1e',
+              color: 'white',
+              border: 'none',
+              top: '64px', // Altura do header
+              height: 'calc(100% - 64px - 56px)', // Menos o header e o footer
+            },
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            height: '100%',
+            p: 1
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1 }}>
+              <Typography variant="h6">Chat da Sala</Typography>
+              <IconButton size="small" onClick={() => setIsChatOpen(false)} sx={{ color: 'white' }}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            
+            <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+              <ChatBox
+                roomId={roomId}
+                participants={participants}
+                isOpen={isChatOpen}
+                onToggle={() => setIsChatOpen(!isChatOpen)}
+                embedded={true} // Novo modo incorporado
+              />
+            </Box>
+          </Box>
+        </Drawer>
+      </Box>
+
+      {/* Barra de controles inferior */}
+      <Paper
+        elevation={3} 
+        sx={{ 
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          p: { xs: 0.5, sm: 1 },
+          borderRadius: 0,
+          bgcolor: '#1e1e1e'
+        }}
+      >
+        <Stack 
+          direction="row" 
+          spacing={{ xs: 0.5, sm: 1 }}
+          alignItems="center"
+          justifyContent="center"
+          sx={{ 
+            flexGrow: 1,
+            maxWidth: 600
+          }}
+        >
+          {/* Controle de microfone */}
+          <Tooltip title={audioEnabled ? "Desativar microfone" : "Ativar microfone"}>
+            <IconButton
+              onClick={toggleAudio}
+              color={audioEnabled ? "primary" : "default"}
+              sx={{ 
+                color: audioEnabled ? 'white' : 'grey.500', 
+                bgcolor: audioEnabled ? 'transparent' : 'rgba(255,255,255,0.1)',
+                p: { xs: 1, sm: 1.5 }
+              }}
+            >
+              {audioEnabled ? <MicIcon /> : <MicOffIcon />}
+            </IconButton>
+          </Tooltip>
+
+          {/* Controle de vídeo */}
+          <Tooltip title={videoEnabled ? "Desativar câmera" : "Ativar câmera"}>
+            <IconButton
+              onClick={toggleVideo}
+              color={videoEnabled ? "primary" : "default"}
+              sx={{ 
+                color: videoEnabled ? 'white' : 'grey.500', 
+                bgcolor: videoEnabled ? 'transparent' : 'rgba(255,255,255,0.1)',
+                p: { xs: 1, sm: 1.5 }
+              }}
+            >
+              {videoEnabled ? <VideocamIcon /> : <VideocamOffIcon />}
+            </IconButton>
+          </Tooltip>
+
+          {/* Botão de compartilhamento de tela */}
+          <Tooltip title="Compartilhar tela">
+            <IconButton
+              color="default"
+              sx={{ 
+                color: 'white', 
+                p: { xs: 1, sm: 1.5 },
+                display: { xs: 'none', sm: 'flex' } 
+              }}
+            >
+              <ScreenShareIcon />
+            </IconButton>
+          </Tooltip>
+
+          {/* Botão de chat */}
+          <Tooltip title="Chat">
+            <IconButton
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              color={isChatOpen ? "primary" : "default"}
+              sx={{ 
+                color: isChatOpen ? 'white' : 'grey.500',
+                bgcolor: isChatOpen ? 'rgba(144, 202, 249, 0.2)' : 'transparent',
+                p: { xs: 1, sm: 1.5 }
+              }}
+            >
+              <Badge badgeContent={!isChatOpen && unreadMessages} color="error">
+                <ChatIcon />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+          
+          {/* Botão de mixer */}
+          <Tooltip title="Mixer de Áudio">
+            <IconButton
+              onClick={() => setIsMixerOpen(!isMixerOpen)}
+              color="default"
+              sx={{ color: isMixerOpen ? 'white' : 'grey.500', p: { xs: 1, sm: 1.5 } }}
+            >
+              <GraphicEqIcon />
+            </IconButton>
+          </Tooltip>
+
+          {/* Botão de sair */}
+          <Tooltip title="Sair da sala">
+            <IconButton
+              onClick={() => navigate('/')}
+              color="error"
+              sx={{ p: { xs: 1, sm: 1.5 } }}
+            >
+              <ExitIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Paper>
+
+      {/* Drawer de Mixer */}
+      <Drawer
+        anchor="right"
+        open={isMixerOpen}
+        onClose={() => setIsMixerOpen(false)}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: '100%', // Ocupando toda a largura
+            height: '100%', // Ocupando toda a altura
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            bgcolor: '#1e1e1e',
+            color: 'white',
+            overflowY: 'auto'
+          },
+        }}
+      >
+        <Box sx={{ p: 2, height: '100%' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5">Mixer de Áudio</Typography>
+            <IconButton onClick={() => setIsMixerOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          <Box sx={{ height: 'calc(100% - 60px)', overflowY: 'auto' }}>
             <AudioMixer 
               participants={participants} 
               localParticipant={localParticipant}
               toggleAudio={toggleAudio}
               toggleVideo={toggleVideo}
+              fullWidth={true} // Nova prop para indicar modo tela cheia
             />
-          </Paper>
-        </Grid>
-      </Grid>
-    </Container>
+          </Box>
+        </Box>
+      </Drawer>
+    </Box>
   );
 };
 

@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { useRoom } from '../contexts/RoomContext';
+import { safeFilter, safe, ensureArray, processParticipants } from '../utils/safeUtils';
 
 function VideoPanel() {
   const { t } = useTranslation();
@@ -40,6 +41,10 @@ function VideoPanel() {
   });
   const videoRefs = useRef({});
   const peerConnections = useRef({});
+
+  const safeUsers = processParticipants(users || []);
+  const safeRoom = room || {};
+  const safeRoomUserId = safe(safeRoom, 'userId', '');
 
   const setupLocalStream = useCallback(async () => {
     if (!room?.mediaConfig) return;
@@ -62,10 +67,8 @@ function VideoPanel() {
 
       // Enviar stream para outros usuários
       if (socket) {
-        users.forEach(user => {
-          if (user.id !== room.userId) {
-            createPeerConnection(user.id, stream);
-          }
+        safeFilter(safeUsers, user => user.id !== safeRoomUserId).forEach(user => {
+          createPeerConnection(user.id, stream);
         });
       }
     } catch (error) {
@@ -76,7 +79,7 @@ function VideoPanel() {
         audioError: audioEnabled ? 'Erro ao acessar microfone' : null
       }));
     }
-  }, [room?.mediaConfig, room?.userId, socket, users]);
+  }, [room?.mediaConfig, safeRoomUserId, socket, safeUsers]);
 
   const createPeerConnection = async (userId, stream) => {
     try {
@@ -293,14 +296,12 @@ function VideoPanel() {
         setIsScreenSharing(true);
 
         // Enviar stream de tela para outros usuários
-        users.forEach(user => {
-          if (user.id !== room.userId) {
-            const pc = peerConnections.current[user.id];
-            if (pc) {
-              stream.getTracks().forEach(track => {
-                pc.addTrack(track, stream);
-              });
-            }
+        safeFilter(safeUsers, user => user.id !== safeRoomUserId).forEach(user => {
+          const pc = peerConnections.current[user.id];
+          if (pc) {
+            stream.getTracks().forEach(track => {
+              pc.addTrack(track, stream);
+            });
           }
         });
       }
@@ -311,7 +312,7 @@ function VideoPanel() {
 
   // Inicializar refs de vídeo para cada usuário
   useEffect(() => {
-    users.forEach(user => {
+    safeFilter(safeUsers, user => user.id !== safeRoomUserId).forEach(user => {
       if (!videoRefs.current[user.id]) {
         videoRefs.current[user.id] = React.createRef();
       }
@@ -319,259 +320,79 @@ function VideoPanel() {
 
     // Limpar refs não utilizadas
     Object.keys(videoRefs.current).forEach(userId => {
-      if (!users.find(u => u.id === userId)) {
+      if (!safeUsers.find(u => u.id === userId)) {
         delete videoRefs.current[userId];
       }
     });
-  }, [users]);
+  }, [safeUsers]);
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Grid container spacing={2}>
-        {/* Vídeo Local */}
-        <Grid item xs={12} md={6}>
-          <Paper
-            elevation={3}
+    <Box sx={{ 
+      display: 'flex', 
+      flexWrap: 'wrap',
+      gap: 2,
+      height: '100%',
+      overflow: 'auto',
+      p: 2
+    }}>
+      {safeFilter(safeUsers, user => user.id !== safeRoomUserId).map((user) => (
+        <Box 
+          key={user.id} 
+          sx={{
+            width: { xs: '100%', sm: '47%', md: '31%', lg: '23%' },
+            height: 200,
+            position: 'relative',
+            borderRadius: 2,
+            overflow: 'hidden',
+            boxShadow: 3
+          }}
+        >
+          <Box
+            component="video"
+            autoPlay
+            playsInline
             sx={{
-              position: 'relative',
-              aspectRatio: '16/9',
-              overflow: 'hidden',
-              bgcolor: 'background.default'
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              backgroundColor: 'black'
             }}
-          >
-            {localStream && mediaStatus.video ? (
-              <video
-                autoPlay
-                muted
-                playsInline
-                ref={video => {
-                  if (video) video.srcObject = localStream;
-                }}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-              />
-            ) : (
-              <Box
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'column',
-                  gap: 1
-                }}
-              >
-                <VideocamOff sx={{ fontSize: 48, opacity: 0.5 }} />
-                <Typography variant="body2" color="text.secondary">
-                  {mediaStatus.videoError || t('room.video.disabled')}
-                </Typography>
-              </Box>
-            )}
-
-            {/* Controles de Mídia */}
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 16,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                display: 'flex',
-                gap: 1,
-                bgcolor: 'rgba(0, 0, 0, 0.5)',
-                borderRadius: 2,
-                p: 1
-              }}
-            >
-              <Tooltip title={mediaStatus.video ? t('room.controls.disableVideo') : t('room.controls.enableVideo')}>
-                <IconButton
-                  onClick={toggleVideo}
-                  disabled={mediaStatus.videoLoading}
-                  color={mediaStatus.video ? 'primary' : 'default'}
-                >
-                  {mediaStatus.videoLoading ? (
-                    <CircularProgress size={24} />
-                  ) : mediaStatus.video ? (
-                    <Videocam />
-                  ) : (
-                    <VideocamOff />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={mediaStatus.audio ? t('room.controls.disableAudio') : t('room.controls.enableAudio')}>
-                <IconButton
-                  onClick={toggleAudio}
-                  disabled={mediaStatus.audioLoading}
-                  color={mediaStatus.audio ? 'primary' : 'default'}
-                >
-                  {mediaStatus.audioLoading ? (
-                    <CircularProgress size={24} />
-                  ) : mediaStatus.audio ? (
-                    <Mic />
-                  ) : (
-                    <MicOff />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={isScreenSharing ? t('room.controls.stopSharing') : t('room.controls.startSharing')}>
-                <IconButton
-                  onClick={toggleScreenShare}
-                  color={isScreenSharing ? 'primary' : 'default'}
-                >
-                  {isScreenSharing ? (
-                    <StopScreenShare />
-                  ) : (
-                    <ScreenShare />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title={t('room.controls.settings')}>
-                <IconButton onClick={() => {/* Implementar configurações */}}>
-                  <Settings />
-                </IconButton>
-              </Tooltip>
-
-              <Box sx={{ borderLeft: 1, mx: 1, borderColor: 'rgba(255,255,255,0.3)' }} />
-
-              <Tooltip title={t('room.leave')}>
-                <IconButton
-                  onClick={leaveRoom}
-                  sx={{
-                    color: 'error.main',
-                    '&:hover': {
-                      bgcolor: 'error.dark',
-                      color: 'white'
-                    }
-                  }}
-                >
-                  <ExitToApp />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
-            {/* Indicadores de Erro */}
-            {(mediaStatus.videoError || mediaStatus.audioError) && (
-              <Tooltip title={mediaStatus.videoError || mediaStatus.audioError}>
-                <IconButton
-                  sx={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    bgcolor: 'error.main',
-                    '&:hover': {
-                      bgcolor: 'error.dark'
-                    }
-                  }}
-                >
-                  <Warning />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Paper>
-        </Grid>
-
-        {/* Vídeos dos outros participantes */}
-        {users.filter(user => user.id !== room?.userId).map((user) => (
-          <Grid item xs={12} md={6} key={user.id}>
-            <Paper
-              elevation={3}
-              sx={{
-                position: 'relative',
-                aspectRatio: '16/9',
-                overflow: 'hidden',
-                bgcolor: 'background.default'
-              }}
-            >
-              <video
-                ref={videoRefs.current[user.id]}
-                autoPlay
-                playsInline
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: user.hasVideo ? 'block' : 'none'
-                }}
-              />
-              
-              {!user.hasVideo && (
-                <Box
-                  sx={{
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    gap: 1
-                  }}
-                >
-                  <VideocamOff sx={{ fontSize: 48, opacity: 0.5 }} />
-                  <Typography variant="body2" color="text.secondary">
-                    {t('room.video.noVideo')}
-                  </Typography>
-                </Box>
-              )}
-
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  p: 1,
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%)',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1
-                }}
-              >
-                <Typography variant="body2">
-                  {user.name}
-                  {user.id === admin?.id && (
-                    <Chip
-                      size="small"
-                      label={t('room.admin')}
-                      color="primary"
-                      sx={{ ml: 1 }}
-                    />
-                  )}
-                </Typography>
-                <Box sx={{ flex: 1 }} />
-                {user.hasAudio && (
-                  <Tooltip title={t('room.video.audioActive')}>
-                    <Mic fontSize="small" />
-                  </Tooltip>
-                )}
-                {isAdmin && user.id !== admin?.id && (
-                  <Tooltip title={t('room.kickUser')}>
-                    <IconButton
-                      size="small"
-                      onClick={() => kickUser(user.id)}
-                      sx={{
-                        color: 'error.main',
-                        '&:hover': {
-                          bgcolor: 'error.dark',
-                          color: 'white'
-                        }
-                      }}
-                    >
-                      <PersonRemove fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Box>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+          />
+          <Box sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            p: 1,
+            bgcolor: 'rgba(0,0,0,0.6)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Typography variant="body2">
+              {safe(user, 'name', 'Usuário')}
+            </Typography>
+            <Typography variant="caption">
+              {safe(user, 'instrument', 'Instrumento')}
+            </Typography>
+          </Box>
+        </Box>
+      ))}
+      
+      {safeFilter(safeUsers, user => user.id !== safeRoomUserId).length === 0 && (
+        <Box sx={{ 
+          width: '100%', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          height: '100%'
+        }}>
+          <Typography variant="body1" color="text.secondary">
+            Nenhum outro participante na sala
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 }

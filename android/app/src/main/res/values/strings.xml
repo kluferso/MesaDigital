@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MesaDigital</string>
+    <string name="login_title">Bem-vindo ao MesaDigital</string>
+    <string name="login_subtitle">Colaboração musical em tempo real</string>
+    <string name="name_hint">Seu nome</string>
+    <string name="room_id_hint">ID da Sala</string>
+    <string name="create_room">Criar Sala</string>
+    <string name="join_room">Entrar na Sala</string>
+    <string name="error_empty_name">Por favor, informe seu nome</string>
+    <string name="error_empty_room">Por favor, informe o ID da sala</string>
+    <string name="error_connection">Erro de conexão. Verifique sua internet.</string>
+    <string name="permission_required">Permissões Necessárias</string>
+    <string name="permission_message">MesaDigital precisa de acesso ao microfone para funcionar.</string>
+    <string name="allow">Permitir</string>
+    <string name="cancel">Cancelar</string>
+    <string name="leave_room">Sair da Sala</string>
+    <string name="room_title">Sala: %1$s</string>
+    <string name="chat_title">Chat da Sala</string>
+    <string name="message_hint">Digite sua mensagem...</string>
+    <string name="send">Enviar</string>
+    <string name="retry">Tentar Novamente</string>
+    <string name="back_to_home">Voltar para Início</string>
+    <string name="empty_chat">Nenhuma mensagem. Seja o primeiro a enviar!</string>
+    <string name="audio_mixer">Mixer de Áudio</string>
+    <string name="initialization_error">Erro na inicialização</string>
+    <string name="connecting">Conectando ao servidor...</string>
+    <string name="accessing_mic">Acessando microfone...</string>
+    <string name="joining_room">Entrando na sala...</string>
+    <string name="instrument_vocal">Vocal</string>
+</resources>

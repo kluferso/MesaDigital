@@ -1,157 +1,139 @@
-import { useState, useEffect } from 'react';
-import { useMediaDevices } from './useMediaDevices';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { safe, safeFilter, ensureArray } from '../utils/safeUtils';
 
-export function useAudioInterfaces() {
-  const { devices, updateDevices } = useMediaDevices();
+export default function useAudioInterfaces() {
   const [interfaces, setInterfaces] = useState([]);
   const [selectedInterface, setSelectedInterface] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [streams, setStreams] = useState([]);
 
-  // Atualiza a lista de interfaces de áudio
-  useEffect(() => {
-    // Filtra apenas dispositivos de entrada de áudio
-    const audioInterfaces = devices.audioinput || [];
-    
-    // Agrupa por groupId (mesmo dispositivo físico)
-    const groupedInterfaces = audioInterfaces.reduce((acc, device) => {
-      const existing = acc.find(i => i.groupId === device.groupId);
-      if (!existing) {
-        acc.push({
-          id: device.id,
-          name: device.label,
-          groupId: device.groupId,
-          channels: [device]
-        });
-      } else {
-        existing.channels.push(device);
-      }
-      return acc;
-    }, []);
+  // Função segura para carregar as interfaces de áudio
+  const loadInterfaces = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-    setInterfaces(groupedInterfaces);
-  }, [devices]);
-
-  // Seleciona uma interface de áudio
-  const selectInterface = async (interfaceId) => {
     try {
-      const selectedDevice = interfaces.find(i => i.id === interfaceId);
-      
-      // Se não houver dispositivo selecionado, tenta usar o dispositivo padrão
-      if (!selectedDevice) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            autoGainControl: { ideal: false },
-            echoCancellation: { ideal: false },
-            noiseSuppression: { ideal: false }
-          }
-        });
-        
-        const defaultDevice = {
-          id: 'default',
-          name: 'Dispositivo Padrão',
-          groupId: 'default',
-          channels: [{ id: 'default' }]
-        };
-        
-        setSelectedInterface({
-          ...defaultDevice,
-          streams: [{
-            id: 'default',
-            stream,
-            active: true
-          }]
-        });
-        
-        return [{ id: 'default', stream, active: true }];
+      // Verificar se a API de navegador está disponível
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        throw new Error('A API MediaDevices não é suportada neste navegador.');
       }
 
-      // Tenta acessar todos os canais da interface
-      const streams = await Promise.all(
-        selectedDevice.channels.map(async (channel) => {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                deviceId: { exact: channel.id },
-                // Configurações mais flexíveis para compatibilidade
-                autoGainControl: { ideal: false },
-                echoCancellation: { ideal: false },
-                noiseSuppression: { ideal: false },
-                latency: { ideal: 0 },
-                sampleRate: { ideal: 48000 },
-                channelCount: { ideal: 2 }
-              }
-            });
-            return {
-              id: channel.id,
-              stream,
-              active: true
-            };
-          } catch (err) {
-            console.warn(`Canal ${channel.id} não disponível:`, err);
-            return {
-              id: channel.id,
-              stream: null,
-              active: false
-            };
-          }
-        })
+      // Obter lista de dispositivos
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      // Filtrar apenas dispositivos de entrada de áudio
+      const audioInputs = safeFilter(devices, device => 
+        device && device.kind === 'audioinput'
       );
 
-      setSelectedInterface({
-        ...selectedDevice,
-        streams
-      });
-      setError(null);
+      // Mapear para o formato de interface
+      const mappedInterfaces = audioInputs.map(device => ({
+        id: device.deviceId,
+        name: device.label || `Interface de Áudio ${device.deviceId.substring(0, 5)}`,
+        info: device
+      }));
 
-      return streams.filter(s => s.active);
+      // Garantir que sempre temos a interface padrão
+      const hasDefault = mappedInterfaces.some(i => i.id === 'default');
+      if (!hasDefault && mappedInterfaces.length > 0) {
+        mappedInterfaces.unshift({
+          id: 'default',
+          name: 'Interface Padrão',
+          info: { deviceId: 'default', kind: 'audioinput', label: 'Interface Padrão' }
+        });
+      }
+
+      setInterfaces(mappedInterfaces);
+      
+      // Selecionar a primeira interface como padrão se nenhuma estiver selecionada
+      if (!selectedInterface && mappedInterfaces.length > 0) {
+        setSelectedInterface(mappedInterfaces[0]);
+      }
     } catch (err) {
-      console.error('Erro ao selecionar interface:', err);
-      setError('Não foi possível acessar a interface de áudio');
-      setSelectedInterface(null);
-      return [];
+      console.error('Erro ao carregar interfaces de áudio:', err);
+      setError(`Erro ao carregar interfaces de áudio: ${err.message}`);
+      // Definir uma interface fictícia para não quebrar a UI
+      setInterfaces([{
+        id: 'default',
+        name: 'Interface Padrão (Não disponível)',
+        info: { deviceId: 'default', kind: 'audioinput', label: 'Interface Padrão' },
+        disabled: true
+      }]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [selectedInterface]);
 
-  // Libera os recursos da interface selecionada
-  const releaseInterface = () => {
-    if (selectedInterface) {
-      selectedInterface.streams.forEach(({ stream }) => {
-        if (stream) {
+  // Carregar interfaces quando o componente montar
+  useEffect(() => {
+    loadInterfaces();
+    
+    // Adicionar listener para quando dispositivos são conectados/desconectados
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener('devicechange', loadInterfaces);
+      
+      return () => {
+        navigator.mediaDevices.removeEventListener('devicechange', loadInterfaces);
+      };
+    }
+  }, [loadInterfaces]);
+
+  // Função segura para selecionar uma interface
+  const selectInterface = useCallback(async (interfaceId) => {
+    if (!interfaceId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Encontrar a interface pelo ID
+      const selectedDevice = interfaces.find(i => i.id === interfaceId);
+      if (!selectedDevice) {
+        throw new Error(`Interface com ID ${interfaceId} não encontrada.`);
+      }
+      
+      // Parar streams ativos atuais
+      streams.forEach(stream => {
+        if (stream && stream.getTracks) {
           stream.getTracks().forEach(track => track.stop());
         }
       });
-      setSelectedInterface(null);
-    }
-  };
-
-  // Atualiza quando dispositivos mudam
-  useEffect(() => {
-    const handleDeviceChange = async () => {
-      await updateDevices();
       
-      // Se tinha uma interface selecionada, tenta reconectar
-      if (selectedInterface) {
-        const stillExists = interfaces.some(i => i.id === selectedInterface.id);
-        if (!stillExists) {
-          releaseInterface();
-        } else {
-          await selectInterface(selectedInterface.id);
+      // Obter novo stream
+      const constraints = {
+        audio: {
+          deviceId: { exact: selectedDevice.id },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
         }
-      }
-    };
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      setSelectedInterface(selectedDevice);
+      setStreams([stream]);
+    } catch (err) {
+      console.error('Erro ao selecionar interface de áudio:', err);
+      setError(`Erro ao selecionar interface: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [interfaces, streams]);
 
-    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
-    return () => {
-      navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
-      releaseInterface();
-    };
-  }, [selectedInterface, interfaces, updateDevices]);
+  // Retornar apenas streams ativos
+  const activeStreams = useMemo(() => {
+    return safeFilter(streams, stream => stream && stream.active);
+  }, [streams]);
 
   return {
-    interfaces,
+    interfaces: ensureArray(interfaces),
     selectedInterface,
+    loading,
     error,
+    streams: activeStreams,
     selectInterface,
-    releaseInterface
+    refreshInterfaces: loadInterfaces
   };
 }

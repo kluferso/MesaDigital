@@ -1,271 +1,347 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSocket } from './SocketContext';
+import { useSocket } from '../hooks/useSocket';
+import { safe, safeFilter, ensureArray, processParticipants } from '../utils/safeUtils';
 
-const RoomContext = createContext();
+// Criando contexto com valor padrão seguro
+const RoomContext = createContext({
+  room: null,
+  users: [],
+  messages: [],
+  admin: null,
+  isAdmin: false,
+  isMuted: false,
+  joinRoom: () => {},
+  leaveRoom: () => {},
+  sendMessage: () => {},
+  kickUser: () => {},
+  updateMediaStatus: () => {},
+  participants: [],
+  setParticipants: () => [],
+});
 
-export function useRoom() {
-  const context = useContext(RoomContext);
-  if (!context) {
-    throw new Error('useRoom must be used within a RoomProvider');
+// Reducer para gerenciar estado dos participantes de forma mais previsível
+function participantsReducer(state, action) {
+  switch (action.type) {
+    case 'ADD_PARTICIPANT':
+      if (!action.payload) return state;
+      // Verificamos se o participante já existe antes de adicionar
+      return state.some(p => p?.id === action.payload.id) 
+        ? state 
+        : [...state, action.payload];
+      
+    case 'REMOVE_PARTICIPANT':
+      if (!action.payload?.userId) return state;
+      // Usamos safeFilter para garantir que a operação é segura
+      return safeFilter(state, user => user?.id !== action.payload.userId);
+      
+    case 'UPDATE_PARTICIPANT':
+      if (!action.payload?.id) return state;
+      return state.map(p => 
+        p?.id === action.payload.id ? { ...p, ...action.payload } : p
+      );
+      
+    case 'SET_PARTICIPANTS':
+      return Array.isArray(action.payload) ? action.payload : [];
+      
+    case 'CLEAR':
+      return [];
+      
+    default:
+      return state;
   }
-  return context;
 }
 
 export function RoomProvider({ children }) {
   const [room, setRoom] = useState(null);
-  const [roomId, setRoomId] = useState(null);
-  const [participants, setParticipants] = useState([]);
-  const [localStream, setLocalStream] = useState(null);
-  const [remoteStreams, setRemoteStreams] = useState({});
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [messages, setMessages] = useState([]);
-  const [error, setError] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  
-  const { socket, isConnected } = useSocket();
+  const [admin, setAdmin] = useState(null);
+  const { socket } = useSocket();
   const navigate = useNavigate();
-
-  // Limpa o estado quando a conexão cai
-  useEffect(() => {
-    if (!isConnected) {
-      setRoom(null);
-      setRoomId(null);
-      setParticipants([]);
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      setLocalStream(null);
-      setRemoteStreams({});
-      setMessages([]);
+  
+  // Usando reducer para gerenciar participantes
+  const [participants, dispatch] = useReducer(participantsReducer, []);
+  
+  // Função segura para atualizar participantes
+  const setParticipants = useCallback((updater) => {
+    if (typeof updater === 'function') {
+      const result = updater(participants);
+      dispatch({ type: 'SET_PARTICIPANTS', payload: ensureArray(result) });
+    } else {
+      dispatch({ type: 'SET_PARTICIPANTS', payload: ensureArray(updater) });
     }
-  }, [isConnected, localStream]);
+  }, [participants]);
 
-  // Socket event handlers
+  // Verificação de administrador
+  const isAdmin = useCallback(() => {
+    if (!room || !admin) return false;
+    return room.userId === admin.id;
+  }, [room, admin]);
+
+  // Entrar na sala com proteção contra erros
+  const joinRoom = useCallback((roomId, userData) => {
+    if (!socket || !roomId || !userData) {
+      console.error('Erro ao entrar na sala: parâmetros inválidos', { socket, roomId, userData });
+      return;
+    }
+    
+    try {
+      socket.emit('joinRoom', { roomId, userData });
+    } catch (error) {
+      console.error('Erro ao enviar solicitação para entrar na sala:', error);
+    }
+  }, [socket]);
+
+  // Sair da sala com proteção contra erros
+  const leaveRoom = useCallback(() => {
+    if (!socket || !room) {
+      console.error('Erro ao sair da sala: não há sala ativa');
+      return;
+    }
+    
+    try {
+      socket.emit('leaveRoom', { roomId: room.id });
+      dispatch({ type: 'CLEAR' });
+      setRoom(null);
+      setMessages([]);
+      setAdmin(null);
+      navigate('/');
+    } catch (error) {
+      console.error('Erro ao sair da sala:', error);
+    }
+  }, [socket, room, navigate]);
+
+  // Enviar mensagem
+  const sendMessage = useCallback((content) => {
+    if (!socket || !room || !content) return;
+    
+    try {
+      const message = {
+        id: `msg_${Date.now()}`,
+        content,
+        sender: {
+          id: room.userId,
+          name: room.userName
+        },
+        timestamp: new Date().toISOString()
+      };
+      
+      socket.emit('sendMessage', { roomId: room.id, message });
+      
+      // Adicionando otimisticamente à lista local
+      setMessages(prev => [...ensureArray(prev), message]);
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+    }
+  }, [socket, room]);
+
+  // Expulsar usuário
+  const kickUser = useCallback((userId) => {
+    if (!socket || !room || !isAdmin() || !userId) return;
+    
+    try {
+      socket.emit('kickUser', { roomId: room.id, userId });
+    } catch (error) {
+      console.error('Erro ao expulsar usuário:', error);
+    }
+  }, [socket, room, isAdmin]);
+
+  // Atualizar status de mídia
+  const updateMediaStatus = useCallback((status) => {
+    if (!socket || !room) return;
+    
+    try {
+      socket.emit('updateMediaStatus', { 
+        roomId: room.id, 
+        userId: room.userId,
+        status 
+      });
+      
+      // Atualizar participante local
+      dispatch({ 
+        type: 'UPDATE_PARTICIPANT', 
+        payload: { id: room.userId, ...status } 
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status de mídia:', error);
+    }
+  }, [socket, room]);
+
+  // Efeito para configurar eventos do socket
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('create_room_success', (data) => {
-      console.log('Room created:', data);
-      setRoom(data.room);
-      setRoomId(data.room.id);
-      setParticipants(data.room.users || []);
-      setIsAdmin(true);
-    });
-
-    socket.on('join_room_success', (data) => {
-      console.log('Joined room:', data);
-      setRoom(data.room);
-      setRoomId(data.room.id);
-      setParticipants(data.room.users || []);
-      setIsAdmin(false);
-    });
-
-    socket.on('user_joined', ({ user }) => {
-      setParticipants(prev => [...prev, user]);
-    });
-
-    socket.on('user_left', ({ userId }) => {
-      setParticipants(prev => prev.filter(p => p.id !== userId));
-    });
-
-    return () => {
-      socket.off('create_room_success');
-      socket.off('join_room_success');
-      socket.off('user_joined');
-      socket.off('user_left');
+    // Evento quando um usuário entra na sala
+    const handleUserJoined = (data) => {
+      if (!data) return;
+      
+      // Adicionar novo participante
+      dispatch({ type: 'ADD_PARTICIPANT', payload: data.user });
+      
+      // Atualizar admin se necessário
+      if (data.admin) {
+        setAdmin(data.admin);
+      }
+      
+      // Adicionar mensagem de sistema
+      setMessages(prev => [
+        ...ensureArray(prev),
+        {
+          id: `system_${Date.now()}`,
+          content: `${data.user.name} entrou na sala`,
+          system: true,
+          timestamp: new Date().toISOString()
+        }
+      ]);
     };
-  }, [socket]);
 
-  const createRoom = useCallback(async (roomData) => {
-    try {
-      if (!socket || !isConnected) {
-        throw new Error('Socket não conectado');
-      }
-
-      // Emite evento de criação de sala
-      socket.emit('create_room', {
-        ...roomData,
-        isAdmin: true // Marca o criador como admin
-      });
-
-      // Aguarda resposta do servidor
-      const response = await new Promise((resolve, reject) => {
-        socket.once('create_room_success', resolve);
-        socket.once('create_room_error', reject);
-        
-        // Timeout após 5 segundos
-        setTimeout(() => reject(new Error('Timeout ao criar sala')), 5000);
-      });
-
-      console.log('Room created:', response);
-      return response;
-
-    } catch (error) {
-      console.error('Error creating room:', error);
-      throw error;
-    }
-  }, [socket, isConnected]);
-
-  const joinRoom = useCallback(async (roomData) => {
-    try {
-      if (!socket || !isConnected) {
-        throw new Error('Socket não conectado');
-      }
-
-      // Emite evento para entrar na sala
-      socket.emit('join_room', {
-        ...roomData,
-        isAdmin: false // Participante normal
-      });
-
-      // Aguarda resposta do servidor
-      const response = await new Promise((resolve, reject) => {
-        socket.once('join_room_success', resolve);
-        socket.once('join_room_error', reject);
-        
-        // Timeout após 5 segundos
-        setTimeout(() => reject(new Error('Timeout ao entrar na sala')), 5000);
-      });
-
-      console.log('Joined room:', response);
-      return response;
-
-    } catch (error) {
-      console.error('Error joining room:', error);
-      throw error;
-    }
-  }, [socket, isConnected]);
-
-  const leaveRoom = useCallback(() => {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-    }
-    setLocalStream(null);
-    setRemoteStreams({});
-    setParticipants([]);
-    setRoomId(null);
-    setRoom(null);
-    setMessages([]);
-    
-    if (socket && isConnected) {
-      socket.emit('leave_room', { roomId });
-    }
-    
-    navigate('/');
-  }, [localStream, socket, isConnected, roomId, navigate]);
-
-  const toggleAudio = useCallback(() => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioEnabled(audioTrack.enabled);
-        if (socket && isConnected) {
-          socket.emit('toggle_audio', { enabled: audioTrack.enabled });
+    // Evento quando um usuário sai da sala
+    const handleUserLeft = (data) => {
+      if (!data || !data.userId) return;
+      
+      // Remover participante
+      dispatch({ type: 'REMOVE_PARTICIPANT', payload: data });
+      
+      // Adicionar mensagem de sistema
+      const userName = participants.find(p => p?.id === data.userId)?.name || 'Usuário';
+      setMessages(prev => [
+        ...ensureArray(prev),
+        {
+          id: `system_${Date.now()}`,
+          content: `${userName} saiu da sala`,
+          system: true,
+          timestamp: new Date().toISOString()
         }
+      ]);
+      
+      // Atualizar admin se necessário
+      if (data.admin) {
+        setAdmin(data.admin);
       }
-    }
-  }, [localStream, socket, isConnected]);
+    };
 
-  const toggleVideo = useCallback(() => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoEnabled(videoTrack.enabled);
-        if (socket && isConnected) {
-          socket.emit('toggle_video', { enabled: videoTrack.enabled });
-        }
-      }
-    }
-  }, [localStream, socket, isConnected]);
-
-  const toggleScreenShare = useCallback(async () => {
-    try {
-      if (isScreenSharing) {
-        // Stop screen sharing
-        localStream.getTracks().forEach(track => {
-          if (track.kind === 'video') {
-            track.stop();
-          }
-        });
-        
-        // Get new video stream
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: true
-        });
-        
-        const videoTrack = newStream.getVideoTracks()[0];
-        const sender = peerConnections.current[remotePeerId]
-          .getSenders()
-          .find(s => s.track.kind === 'video');
-          
-        if (sender) {
-          sender.replaceTrack(videoTrack);
-        }
-        
-        setLocalStream(prev => {
-          prev.getVideoTracks().forEach(track => track.stop());
-          return newStream;
-        });
-        
-      } else {
-        // Start screen sharing
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true
-        });
-        
-        screenStream.getVideoTracks()[0].onended = () => {
-          toggleScreenShare();
-        };
-        
-        const sender = peerConnections.current[remotePeerId]
-          .getSenders()
-          .find(s => s.track.kind === 'video');
-          
-        if (sender) {
-          sender.replaceTrack(screenStream.getVideoTracks()[0]);
-        }
-        
-        setLocalStream(prev => {
-          prev.getVideoTracks().forEach(track => track.stop());
-          return screenStream;
-        });
+    // Evento quando um usuário é expulso da sala
+    const handleUserKicked = (data) => {
+      if (!data || !data.userId) return;
+      
+      // Verificar se o usuário expulso sou eu
+      if (room && data.userId === room.userId) {
+        setRoom(null);
+        dispatch({ type: 'CLEAR' });
+        setMessages([]);
+        setAdmin(null);
+        navigate('/', { state: { kicked: true } });
+        return;
       }
       
-      setIsScreenSharing(!isScreenSharing);
+      // Remover participante
+      dispatch({ type: 'REMOVE_PARTICIPANT', payload: data });
       
-    } catch (error) {
-      console.error('Error toggling screen share:', error);
-    }
-  }, [isScreenSharing, localStream]);
+      // Adicionar mensagem de sistema
+      const userName = participants.find(p => p?.id === data.userId)?.name || 'Usuário';
+      setMessages(prev => [
+        ...ensureArray(prev),
+        {
+          id: `system_${Date.now()}`,
+          content: `${userName} foi expulso da sala`,
+          system: true,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    };
 
-  const value = {
-    room,
-    roomId,
-    participants,
-    localStream,
-    remoteStreams,
-    isAudioEnabled,
-    isVideoEnabled,
-    isScreenSharing,
-    messages,
-    error,
-    isAdmin,
-    createRoom,
-    joinRoom,
-    leaveRoom,
-    toggleAudio,
-    toggleVideo,
-    toggleScreenShare
-  };
+    // Evento quando uma nova mensagem chega
+    const handleMessageReceived = (data) => {
+      if (!data || !data.message) return;
+      
+      setMessages(prev => [...ensureArray(prev), data.message]);
+    };
+
+    // Evento quando o status de mídia de um usuário é atualizado
+    const handleMediaStatusUpdated = (data) => {
+      if (!data || !data.userId) return;
+      
+      dispatch({ 
+        type: 'UPDATE_PARTICIPANT', 
+        payload: { 
+          id: data.userId, 
+          ...data.status 
+        } 
+      });
+    };
+
+    // Evento quando entramos em uma sala
+    const handleRoomJoined = (data) => {
+      if (!data || !data.room) return;
+      
+      setRoom(data.room);
+      dispatch({ type: 'SET_PARTICIPANTS', payload: ensureArray(data.participants) });
+      setMessages(ensureArray(data.messages));
+      setAdmin(data.admin);
+    };
+
+    // Evento quando a sala foi fechada
+    const handleRoomClosed = () => {
+      setRoom(null);
+      dispatch({ type: 'CLEAR' });
+      setMessages([]);
+      setAdmin(null);
+      navigate('/', { state: { roomClosed: true } });
+    };
+
+    // Evento de erro
+    const handleError = (error) => {
+      console.error('Erro de socket:', error);
+      // Implementar lógica de tratamento de erro
+    };
+
+    // Registrando os ouvintes
+    socket.on('userJoined', handleUserJoined);
+    socket.on('userLeft', handleUserLeft);
+    socket.on('userKicked', handleUserKicked);
+    socket.on('messageReceived', handleMessageReceived);
+    socket.on('mediaStatusUpdated', handleMediaStatusUpdated);
+    socket.on('roomJoined', handleRoomJoined);
+    socket.on('roomClosed', handleRoomClosed);
+    socket.on('error', handleError);
+
+    // Limpeza dos ouvintes
+    return () => {
+      socket.off('userJoined', handleUserJoined);
+      socket.off('userLeft', handleUserLeft);
+      socket.off('userKicked', handleUserKicked);
+      socket.off('messageReceived', handleMessageReceived);
+      socket.off('mediaStatusUpdated', handleMediaStatusUpdated);
+      socket.off('roomJoined', handleRoomJoined);
+      socket.off('roomClosed', handleRoomClosed);
+      socket.off('error', handleError);
+    };
+  }, [socket, room, navigate, participants]);
 
   return (
-    <RoomContext.Provider value={value}>
+    <RoomContext.Provider value={{
+      room,
+      users: participants, // Mantendo compatibilidade com a API anterior
+      messages,
+      admin,
+      isAdmin: isAdmin(),
+      joinRoom,
+      leaveRoom,
+      sendMessage,
+      kickUser,
+      updateMediaStatus,
+      participants,
+      setParticipants
+    }}>
       {children}
     </RoomContext.Provider>
   );
+}
+
+export function useRoom() {
+  const context = useContext(RoomContext);
+  if (!context) {
+    throw new Error('useRoom deve ser usado dentro de um RoomProvider');
+  }
+  return context;
 }

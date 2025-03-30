@@ -1,13 +1,9 @@
 require('dotenv').config();
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
 const path = require('path');
-const cors = require('cors');
-
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
+const http = require('http').createServer(app);
+const io = require('socket.io')(http, {
   path: '/socket.io',
   cors: {
     origin: '*',
@@ -21,13 +17,8 @@ const io = new Server(server, {
 });
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../build')));
-
-// Estado do servidor
-const rooms = new Map();
-const users = new Map();
 
 // Middleware para logging
 app.use((req, res, next) => {
@@ -35,174 +26,283 @@ app.use((req, res, next) => {
   next();
 });
 
-// Função para limpar recursos de um usuário
-const cleanupUser = (socket, userId) => {
-  const userData = users.get(userId);
-  if (!userData) return;
+// Armazena as salas e seus participantes
+const rooms = new Map();
 
-  const { roomId } = userData;
-  const room = rooms.get(roomId);
-  
-  if (room) {
-    // Remover usuário da sala
-    room.users = room.users.filter(u => u.id !== userId);
-    
-    // Se era admin, passar para outro usuário
-    if (room.admin === userId && room.users.length > 0) {
-      room.admin = room.users[0].id;
-      room.users[0].isAdmin = true;
-      io.to(roomId).emit('admin_changed', { admin: room.users[0] });
-    }
-    
-    // Se a sala ficou vazia, remover
-    if (room.users.length === 0) {
-      console.log(`Removendo sala vazia: ${roomId}`);
-      rooms.delete(roomId);
-    } else {
-      // Notificar outros usuários
-      io.to(roomId).emit('user_left', { userId });
-      io.to(roomId).emit('user_list', { users: room.users });
-    }
-  }
-
-  // Remover socket da sala
-  socket.leave(roomId);
-  
-  // Remover dados do usuário
-  users.delete(userId);
-  
-  console.log(`Usuário ${userId} removido da sala ${roomId}`);
-  console.log('Usuários na sala:', room?.users || []);
-};
-
-// Gerenciamento de conexões Socket.IO
+// Gerencia conexões Socket.IO
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
 
-  // Solicitar lista de usuários
-  socket.on('request_user_list', ({ roomId }) => {
-    try {
-      const room = rooms.get(roomId);
-      if (room) {
-        socket.emit('user_list', { users: room.users });
-      }
-    } catch (error) {
-      console.error('Erro ao buscar lista de usuários:', error);
-      socket.emit('error', { message: 'Erro ao buscar lista de usuários' });
-    }
-  });
-
-  socket.on('create_room', (data) => {
+  // Quando um cliente cria uma sala
+  socket.on('create_room', async (data) => {
     try {
       const { name, instrument, noMedia } = data;
-      const roomId = Math.random().toString(36).substring(7);
       
-      // Verificar se usuário já está em uma sala
-      if (users.has(socket.id)) {
-        socket.emit('create_room_error', { message: 'Você já está em uma sala' });
+      console.log(`Tentando criar sala por ${name} (${instrument})`);
+      
+      // Valida os dados
+      if (!name || !instrument) {
+        socket.emit('create_room_error', { message: 'Nome e instrumento são obrigatórios' });
         return;
       }
-      
+
+      // Gera um ID único para a sala
+      const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      // Cria a sala
       const room = {
         id: roomId,
-        admin: socket.id,
-        users: [{
-          id: socket.id,
-          name,
-          instrument,
-          isAdmin: true,
-          hasMedia: !noMedia
-        }]
+        users: new Map(),
+        messages: [],
+        createdAt: new Date()
       };
-      
+
+      // Adiciona a sala ao mapa
       rooms.set(roomId, room);
+      
+      // Adiciona o usuário à sala
+      room.users.set(socket.id, {
+        id: socket.id,
+        name,
+        instrument,
+        noMedia,
+        isAdmin: true,
+        joinedAt: new Date()
+      });
+      
+      // Junta o socket à sala
       socket.join(roomId);
-      users.set(socket.id, { 
-        name, 
-        instrument, 
-        roomId,
-        hasMedia: !noMedia 
-      });
+      socket.roomId = roomId;
       
+      console.log(`Sala ${roomId} criada por ${name}`);
+      
+      // Notifica o cliente
       socket.emit('create_room_success', {
-        room,
-        users: room.users,
-        admin: room.admin
+        room: {
+          id: roomId,
+          userId: socket.id,
+          users: Array.from(room.users.values())
+        }
       });
       
-      console.log(`Sala criada: ${roomId}`);
-      console.log('Usuários na sala:', room.users);
     } catch (error) {
       console.error('Erro ao criar sala:', error);
       socket.emit('create_room_error', { message: 'Erro ao criar sala' });
     }
   });
 
-  socket.on('join_room', (data) => {
+  // Quando um cliente tenta entrar em uma sala
+  socket.on('join_room', async (data) => {
     try {
       const { roomId, name, instrument, hasMedia } = data;
-      console.log(`Usuário ${name} (${socket.id}) tentando entrar na sala ${roomId}`);
       
-      // Verificar se a sala existe
+      console.log(`Tentando entrar na sala ${roomId} como ${name} (${instrument})`);
+      console.log('Socket atual:', socket.id);
+      console.log('Socket roomId:', socket.roomId);
+      
+      // Valida os dados
+      if (!roomId || !name || !instrument) {
+        socket.emit('join_room_error', { message: 'ID da sala, nome e instrumento são obrigatórios' });
+        return;
+      }
+
+      // Verifica se a sala existe
       const room = rooms.get(roomId);
       if (!room) {
-        socket.emit('join_room_error', { message: 'Sala não encontrada' });
+        console.log(`Sala ${roomId} não existe`);
+        socket.emit('join_room_error', { message: 'Esta sala não existe' });
         return;
       }
-      
-      // Verificar se o usuário já está em uma sala
-      if (users.has(socket.id)) {
-        socket.emit('join_room_error', { message: 'Você já está em uma sala' });
+
+      // Se o usuário já está nesta sala específica, não precisa entrar novamente
+      if (socket.roomId === roomId) {
+        console.log(`${name} já está na sala ${roomId}`);
+        socket.emit('join_room_success', {
+          room: {
+            id: roomId,
+            userId: socket.id,
+            users: Array.from(room.users.values())
+          }
+        });
         return;
       }
-      
-      // Verificar se o usuário já está na sala
-      if (room.users.some(u => u.id === socket.id)) {
-        socket.emit('join_room_error', { message: 'Você já está nesta sala' });
-        return;
+
+      // Se o usuário está em outra sala, remove ele da sala anterior
+      if (socket.roomId && socket.roomId !== roomId) {
+        const oldRoom = rooms.get(socket.roomId);
+        if (oldRoom) {
+          oldRoom.users.delete(socket.id);
+          socket.leave(socket.roomId);
+          io.to(socket.roomId).emit('user_left', {
+            userId: socket.id,
+            userName: name
+          });
+          
+          // Se a sala antiga ficou vazia, remove ela
+          if (oldRoom.users.size === 0) {
+            rooms.delete(socket.roomId);
+            console.log(`Sala ${socket.roomId} removida`);
+          }
+        }
       }
-      
-      // Adicionar usuário à sala
-      const user = {
+
+      // Adiciona o usuário à nova sala
+      room.users.set(socket.id, {
         id: socket.id,
         name,
         instrument,
         hasMedia,
-        isAdmin: false
-      };
+        isAdmin: false,
+        joinedAt: new Date()
+      });
       
-      room.users.push(user);
-      socket.join(roomId);
-      users.set(socket.id, { name, instrument, roomId, hasMedia });
+      // Junta o socket à sala
+      await socket.leave(socket.roomId); // Garante que saiu da sala anterior
+      socket.roomId = roomId; // Atualiza o ID da sala atual
+      await socket.join(roomId); // Entra na nova sala
       
-      // Notificar todos na sala
-      socket.emit('join_room_success', { room });
-      io.to(roomId).emit('user_joined', { user });
-      io.to(roomId).emit('user_list', { users: room.users });
+      console.log(`${name} entrou na sala ${roomId}`);
       
-      console.log(`Usuário ${name} entrou na sala ${roomId}`);
-      console.log('Usuários na sala:', room.users);
+      // Notifica todos na sala
+      io.to(roomId).emit('user_joined', {
+        user: {
+          id: socket.id,
+          name,
+          instrument,
+          hasMedia,
+          isAdmin: false
+        }
+      });
+
+      // Envia dados da sala para o novo usuário
+      socket.emit('join_room_success', {
+        room: {
+          id: roomId,
+          userId: socket.id,
+          users: Array.from(room.users.values())
+        }
+      });
+      
     } catch (error) {
       console.error('Erro ao entrar na sala:', error);
       socket.emit('join_room_error', { message: 'Erro ao entrar na sala' });
     }
   });
 
-  socket.on('leave_room', () => {
+  // Quando um cliente envia uma mensagem
+  socket.on('send_message', (data) => {
     try {
-      cleanupUser(socket, socket.id);
+      if (!socket.roomId) {
+        socket.emit('message_error', { message: 'Você não está em nenhuma sala' });
+        return;
+      }
+
+      const room = rooms.get(socket.roomId);
+      if (!room) {
+        socket.emit('message_error', { message: 'Sala não encontrada' });
+        return;
+      }
+
+      const user = room.users.get(socket.id);
+      if (!user) {
+        socket.emit('message_error', { message: 'Usuário não encontrado' });
+        return;
+      }
+
+      const message = {
+        ...data,
+        userId: socket.id,
+        user: {
+          id: socket.id,
+          name: user.name,
+          instrument: user.instrument
+        },
+        timestamp: new Date()
+      };
+
+      // Salva a mensagem no histórico
+      room.messages.push(message);
+
+      // Limita o histórico a 100 mensagens
+      if (room.messages.length > 100) {
+        room.messages.shift();
+      }
+
+      // Envia para todos na sala
+      io.to(socket.roomId).emit('chat_message', message);
+      
     } catch (error) {
-      console.error('Erro ao sair da sala:', error);
-      socket.emit('error', { message: 'Erro ao sair da sala' });
+      console.error('Erro ao enviar mensagem:', error);
+      socket.emit('message_error', { message: 'Erro ao enviar mensagem' });
     }
   });
 
+  // Quando um cliente se desconecta
   socket.on('disconnect', () => {
     try {
       console.log('Cliente desconectado:', socket.id);
-      cleanupUser(socket, socket.id);
+      
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          const user = room.users.get(socket.id);
+          
+          // Remove o usuário da sala
+          room.users.delete(socket.id);
+          
+          // Se a sala ficou vazia, remove ela
+          if (room.users.size === 0) {
+            rooms.delete(socket.roomId);
+            console.log(`Sala ${socket.roomId} removida`);
+          } else {
+            // Notifica os outros usuários
+            io.to(socket.roomId).emit('user_left', {
+              userId: socket.id,
+              userName: user ? user.name : 'Usuário desconhecido'
+            });
+          }
+        }
+        // Limpa o roomId do socket
+        socket.roomId = null;
+        // Remove o socket da sala
+        socket.leave(socket.roomId);
+      }
     } catch (error) {
-      console.error('Erro ao desconectar usuário:', error);
+      console.error('Erro ao desconectar:', error);
+    }
+  });
+
+  // Quando um cliente sai da sala manualmente
+  socket.on('leave_room', () => {
+    try {
+      if (socket.roomId) {
+        const room = rooms.get(socket.roomId);
+        if (room) {
+          const user = room.users.get(socket.id);
+          
+          // Remove o usuário da sala
+          room.users.delete(socket.id);
+          
+          // Se a sala ficou vazia, remove ela
+          if (room.users.size === 0) {
+            rooms.delete(socket.roomId);
+            console.log(`Sala ${socket.roomId} removida`);
+          } else {
+            // Notifica os outros usuários
+            io.to(socket.roomId).emit('user_left', {
+              userId: socket.id,
+              userName: user ? user.name : 'Usuário desconhecido'
+            });
+          }
+        }
+        // Limpa o roomId do socket
+        socket.roomId = null;
+        // Remove o socket da sala
+        socket.leave(socket.roomId);
+      }
+    } catch (error) {
+      console.error('Erro ao sair da sala:', error);
+      socket.emit('leave_room_error', { message: 'Erro ao sair da sala' });
     }
   });
 });
@@ -232,8 +332,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../build', 'index.html'));
 });
 
-// Iniciar servidor
+// Inicia o servidor
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+http.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });

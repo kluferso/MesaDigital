@@ -76,7 +76,7 @@ export const RoomProvider = ({ children }) => {
       if (data.remainingUsers) {
         setUsers(data.remainingUsers);
       } else {
-        setUsers(prev => prev.filter(user => user.id !== data.userId));
+        setUsers(prev => Array.isArray(prev) ? prev.filter(user => user && user.id !== data.userId) : []);
       }
       
       if (data.admin) {

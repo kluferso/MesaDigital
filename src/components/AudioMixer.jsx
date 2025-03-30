@@ -1,213 +1,696 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
-  Slider,
   Typography,
-  Paper,
+  Slider,
   IconButton,
-  Avatar,
-  useTheme,
   Tooltip,
-  Select,
-  MenuItem,
+  useTheme,
+  Collapse,
   FormControl,
   InputLabel,
+  Select,
+  MenuItem,
+  Switch,
+  FormControlLabel,
   Alert,
-  Stack,
+  CircularProgress,
+  Grid,
+  Tabs,
+  Tab,
+  Avatar,
+  Badge,
+  SpeedDial,
+  SpeedDialAction,
+  SpeedDialIcon,
+  Drawer,
   Divider,
-  Collapse,
-  Grid
+  ButtonGroup,
+  Button,
+  Paper,
+  Stack
 } from '@mui/material';
 import {
-  VolumeUp,
-  VolumeOff,
-  VolumeMute,
-  VolumeDown,
-  MusicNote,
-  Warning,
-  GraphicEq,
-  PanTool,
-  SettingsInputComponent,
-  ExpandMore,
-  ExpandLess,
-  Equalizer,
-  Speed,
+  VolumeUp as VolumeIcon,
+  VolumeOff as MuteIcon,
+  Mic as MicIcon,
+  MicOff as MicOffIcon,
+  Videocam as VideoIcon,
+  VideocamOff as VideoOffIcon,
+  ExpandMore as ExpandIcon,
+  ExpandLess as CollapseIcon,
+  Settings as SettingsIcon,
+  Equalizer as EqualizerIcon,
+  HighQuality as QualityIcon,
+  Tune as TuneIcon,
+  SpatialAudio as SpatialAudioIcon,
+  Close as CloseIcon,
+  Check as CheckIcon,
+  GraphicEq as GraphicEqIcon,
+  Delete as DeleteIcon,
+  Headphones as HeadphonesIcon,
+  Save as SaveIcon,
+  Person as PersonIcon,
+  Star as StarIcon,
+  MusicNote as MusicNoteIcon,
 } from '@mui/icons-material';
-import useWebRTC from '../hooks/useWebRTC';
-import { useSocket } from '../contexts/SocketContext';
-import { useAudioInterfaces } from '../hooks/useAudioInterfaces';
-import { useTranslation } from 'react-i18next';
+import { isValidArray, safeFilter, ensureArray, safe, processParticipants } from '../utils/safeUtils';
 
-function AudioMixer({ users }) {
+// Componente de configurações avançadas com novo design visual
+const AdvancedSettings = ({ participant, onClose }) => {
   const theme = useTheme();
-  const { socket } = useSocket();
-  const { 
-    localStream,
-    remoteStreams,
-    audioEnabled,
-    videoEnabled,
-    volume
-  } = useWebRTC();
-  const { interfaces, selectedInterface, error: interfaceError, selectInterface } = useAudioInterfaces();
-  const { t } = useTranslation();
-  const [interfaceId, setInterfaceId] = useState('');
-  const [expandedUsers, setExpandedUsers] = useState(new Set());
-
-  // Efeito para selecionar interface quando mudar
-  useEffect(() => {
-    if (interfaceId) {
-      selectInterface(interfaceId);
-    }
-  }, [interfaceId, selectInterface]);
-
-  const handleVolumeChange = (userId, newValue) => {
-    // setVolume(userId, newValue);
+  const [activeTab, setActiveTab] = useState(0);
+  const [userVolume, setUserVolume] = useState(80);
+  const [effectsSettings, setEffectsSettings] = useState({
+    reverb: 30,
+    echo: 10,
+    bass: 50,
+    treble: 60,
+    spatialWidth: 70,
+  });
+  
+  const handleChangeTab = (event, newValue) => {
+    setActiveTab(newValue);
   };
-
-  const handleMuteToggle = (userId) => {
-    // toggleMute(userId);
+  
+  const handleEffectChange = (effect, value) => {
+    setEffectsSettings(prev => ({
+      ...prev,
+      [effect]: value
+    }));
   };
-
-  const handleEQChange = (userId, band, value) => {
-    // setEQ(userId, band, value);
-  };
-
-  const handleGainChange = (userId, value) => {
-    // setGain(userId, value);
-  };
-
-  const handleExpandToggle = (userId) => {
-    setExpandedUsers(prev => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(userId)) {
-        newExpanded.delete(userId);
-      } else {
-        newExpanded.add(userId);
-      }
-      return newExpanded;
-    });
-  };
-
-  const handleInterfaceChange = (event) => {
-    setInterfaceId(event.target.value);
-  };
-
-  const getVolumeIcon = (volume, muted) => {
-    if (muted) return <VolumeOff />;
-    if (volume === 0) return <VolumeMute />;
-    if (volume < 50) return <VolumeDown />;
-    return <VolumeUp />;
-  };
-
-  const getInitials = (name) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  
+  const handleSavePreset = () => {
+    console.log('Salvando preset para', participant.name);
+    // Implementar salvamento de preset
   };
 
   return (
-    <Paper
-      elevation={3}
-      sx={{
-        p: 2,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        bgcolor: theme.palette.background.paper,
-        borderRadius: '16px',
-        border: `1px solid ${theme.palette.divider}`,
-      }}
-    >
-      {/* Header */}
+    <Box sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'center', 
-        gap: 1,
-        pb: 1,
-        borderBottom: `2px solid ${theme.palette.primary.main}`
+        justifyContent: 'space-between',
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        p: 1,
+        bgcolor: '#1e1e1e'
       }}>
-        <GraphicEq color="primary" />
-        <Typography variant="h6" color="primary" fontWeight="bold">
-          {t('mixer.title')}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Avatar
+            sx={{ 
+              bgcolor: participant.isLocal ? 'primary.main' : 'secondary.main',
+              width: 32, 
+              height: 32 
+            }}
+          >
+            {participant.isLocal ? "Eu" : participant.name?.charAt(0).toUpperCase() || "?"}
+          </Avatar>
+          <Typography variant="subtitle1" sx={{ color: 'white' }}>
+            {participant.name} {participant.isLocal && '(Você)'}
+          </Typography>
+        </Box>
+        <IconButton onClick={onClose} size="small" sx={{ color: 'white' }}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+      
+      <Tabs 
+        value={activeTab} 
+        onChange={handleChangeTab} 
+        variant="fullWidth"
+        sx={{ 
+          borderBottom: 1, 
+          borderColor: 'divider',
+          bgcolor: '#2a2a2a',
+          '& .MuiTab-root': {
+            minHeight: '48px',
+            fontSize: '0.8rem',
+            color: 'white'
+          },
+          '& .Mui-selected': {
+            color: '#90caf9'
+          }
+        }}
+      >
+        <Tab icon={<TuneIcon fontSize="small" />} label="Básico" />
+        <Tab icon={<EqualizerIcon fontSize="small" />} label="Equalizador" />
+        <Tab icon={<SpatialAudioIcon fontSize="small" />} label="Espacial" />
+      </Tabs>
+      
+      <Box sx={{ p: 2, height: '280px', overflowY: 'auto', bgcolor: '#2a2a2a', color: 'white' }}>
+        {/* Configurações Básicas */}
+        {activeTab === 0 && (
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Volume
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton size="small" sx={{ color: 'white' }}>
+                  <VolumeIcon fontSize="small" />
+                </IconButton>
+                <Slider
+                  value={userVolume}
+                  onChange={(e, newValue) => setUserVolume(newValue)}
+                  aria-label="Volume"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <FormControlLabel
+              control={<Switch defaultChecked color="primary" />}
+              label="Redução de ruído"
+              sx={{ color: 'white' }}
+            />
+            
+            <FormControlLabel
+              control={<Switch defaultChecked color="primary" />}
+              label="Cancelamento de eco"
+              sx={{ color: 'white' }}
+            />
+            
+            <FormControlLabel
+              control={<Switch defaultChecked color="primary" />}
+              label="Auto ajuste de ganho"
+              sx={{ color: 'white' }}
+            />
+            
+            <FormControlLabel
+              control={<Switch color="primary" />}
+              label="Priorizar voz"
+              sx={{ color: 'white' }}
+            />
+          </Stack>
+        )}
+        
+        {/* Equalizador */}
+        {activeTab === 1 && (
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Graves
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <GraphicEqIcon sx={{ mr: 1, transform: 'rotate(180deg)', opacity: 0.7, color: 'white' }} />
+                <Slider
+                  value={effectsSettings.bass}
+                  onChange={(e, value) => handleEffectChange('bass', value)}
+                  aria-label="Graves"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Médios
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <GraphicEqIcon sx={{ mr: 1, opacity: 0.7, color: 'white' }} />
+                <Slider
+                  defaultValue={50}
+                  aria-label="Médios"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Agudos
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <GraphicEqIcon sx={{ mr: 1, transform: 'scaleY(0.7)', opacity: 0.7, color: 'white' }} />
+                <Slider
+                  value={effectsSettings.treble}
+                  onChange={(e, value) => handleEffectChange('treble', value)}
+                  aria-label="Agudos"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <Divider sx={{ my: 1, bgcolor: 'grey.700' }} />
+            
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DeleteIcon />}
+                size="small"
+              >
+                Resetar
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<SaveIcon />}
+                size="small"
+                onClick={handleSavePreset}
+              >
+                Salvar preset
+              </Button>
+            </Box>
+          </Stack>
+        )}
+        
+        {/* Efeitos Espaciais */}
+        {activeTab === 2 && (
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Reverberação
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <SpatialAudioIcon sx={{ mr: 1, opacity: 0.7, color: 'white' }} />
+                <Slider
+                  value={effectsSettings.reverb}
+                  onChange={(e, value) => handleEffectChange('reverb', value)}
+                  aria-label="Reverberação"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Eco
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <SpatialAudioIcon sx={{ mr: 1, opacity: 0.7, color: 'white' }} />
+                <Slider
+                  value={effectsSettings.echo}
+                  onChange={(e, value) => handleEffectChange('echo', value)}
+                  aria-label="Eco"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom sx={{ color: 'white' }}>
+                Largura espacial
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <SpatialAudioIcon sx={{ mr: 1, opacity: 0.7, color: 'white' }} />
+                <Slider
+                  value={effectsSettings.spatialWidth}
+                  onChange={(e, value) => handleEffectChange('spatialWidth', value)}
+                  aria-label="Largura espacial"
+                  valueLabelDisplay="auto"
+                />
+              </Box>
+            </Box>
+            
+            <FormControlLabel
+              control={<Switch color="primary" />}
+              label="Áudio 3D"
+              sx={{ color: 'white' }}
+            />
+            
+            <FormControlLabel
+              control={<Switch color="secondary" />}
+              label="Modo sala de concerto"
+              sx={{ color: 'white' }}
+            />
+          </Stack>
+        )}
+      </Box>
+      
+      <Box sx={{ 
+        p: 1, 
+        borderTop: `1px solid grey`,
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: 1,
+        bgcolor: '#1e1e1e'
+      }}>
+        <Typography variant="caption" sx={{ flexGrow: 1, alignSelf: 'center', color: 'grey.400' }}>
+          {participant.isLocal ? 'Configurações do seu áudio' : `Configurações para ${participant.name}`}
+        </Typography>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onClose}
+          sx={{ color: 'white', borderColor: 'grey.700' }}
+        >
+          Fechar
+        </Button>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<CheckIcon />}
+          onClick={onClose}
+        >
+          Aplicar
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+// Componente de card de participante com layout melhorado
+const ParticipantCard = ({ participant, selectedInterface, onOpenSettings }) => {
+  const theme = useTheme();
+  const hasInterface = selectedInterface && selectedInterface.streams && selectedInterface.streams.some(s => s.active);
+  const instrumentColors = {
+    "Guitarra": "#e57373",
+    "Baixo": "#64b5f6",
+    "Bateria": "#ffb74d",
+    "Teclado": "#4db6ac",
+    "Violão": "#81c784",
+    "Voz": "#9575cd",
+    "Piano": "#4fc3f7",
+    "Violino": "#ff8a65",
+    "Violoncelo": "#a1887f",
+    "Flauta": "#90a4ae",
+    "Saxofone": "#f06292",
+    "Trompete": "#ffd54f"
+  };
+  
+  const instrumentColor = instrumentColors[participant.instrument] || '#4fc3f7';
+  
+  return (
+    <Paper
+      elevation={2}
+      sx={{
+        p: 2,
+        borderRadius: 2,
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': {
+          boxShadow: 6,
+          transform: 'translateY(-4px)',
+        },
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        position: 'relative',
+        overflow: 'visible',
+        bgcolor: '#2a2a2a',
+        minHeight: '200px',
+        width: '100%'
+      }}
+    >
+      {/* Barra decorativa com a cor do instrumento */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 5,
+          bgcolor: instrumentColor,
+        }}
+      />
+      
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 2, 
+        mb: 2,
+        width: '100%',
+      }}>
+        <Badge
+          overlap="circular"
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          badgeContent={
+            participant.isLocal && (
+              <Box
+                sx={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  bgcolor: 'primary.main',
+                  border: `2px solid #1e1e1e`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <PersonIcon sx={{ fontSize: 8, color: 'white' }} />
+              </Box>
+            )
+          }
+        >
+          <Avatar
+            sx={{
+              bgcolor: instrumentColor,
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+            }}
+          >
+            <MusicNoteIcon />
+          </Avatar>
+        </Badge>
+        
+        <Box sx={{ 
+          flexGrow: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+        }}>
+          <Typography 
+            variant="subtitle1" 
+            component="div" 
+            sx={{ 
+              fontWeight: 'medium',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'white'
+            }}
+            title={`${participant.name}${participant.isLocal ? " (Você)" : ""}`}
+          >
+            {participant.name} {participant.isLocal && "(Você)"}
+          </Typography>
+          <Typography 
+            variant="caption" 
+            sx={{
+              display: 'block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'grey.400'
+            }}
+            title={participant.instrument || 'Instrumento não definido'}
+          >
+            {participant.instrument || 'Instrumento não definido'}
+          </Typography>
+        </Box>
+      </Box>
+      
+      <Box sx={{ flexGrow: 1 }}>
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ 
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 0.5
+          }}>
+            <Typography variant="body2" sx={{ color: 'grey.400' }}>
+              Volume
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.7, color: 'grey.300' }}>
+              80%
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <VolumeIcon fontSize="small" sx={{ color: 'grey.400' }} />
+            <Slider
+              size="small"
+              defaultValue={80}
+              aria-label="Volume"
+              valueLabelDisplay="auto"
+            />
+          </Box>
+        </Box>
+      </Box>
+      
+      {/* Controles no rodapé do card */}
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{ 
+          mt: 'auto',
+          pt: 2,
+          justifyContent: 'center',
+          flexWrap: 'nowrap'
+        }}
+      >
+        {participant.isLocal && (
+          <>
+            <Tooltip title={participant.audioEnabled ? "Desativar microfone" : "Ativar microfone"}>
+              <IconButton
+                size="medium"
+                color={participant.audioEnabled ? "primary" : "default"}
+                sx={{ 
+                  bgcolor: '#1e1e1e',
+                  color: participant.audioEnabled ? '#90caf9' : 'grey.500'
+                }}
+              >
+                {participant.audioEnabled ? <MicIcon /> : <MicOffIcon />}
+              </IconButton>
+            </Tooltip>
+            
+            <Tooltip title={participant.videoEnabled ? "Desativar câmera" : "Ativar câmera"}>
+              <IconButton
+                size="medium"
+                color={participant.videoEnabled ? "primary" : "default"}
+                sx={{ 
+                  bgcolor: '#1e1e1e',
+                  color: participant.videoEnabled ? '#90caf9' : 'grey.500'
+                }}
+              >
+                {participant.videoEnabled ? <VideoIcon /> : <VideoOffIcon />}
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+        
+        <Tooltip title="Configurações avançadas">
+          <IconButton
+            size="medium"
+            onClick={() => onOpenSettings(participant)}
+            sx={{ 
+              bgcolor: '#1e1e1e',
+              color: 'grey.300'
+            }}
+          >
+            <SettingsIcon />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    </Paper>
+  );
+};
+
+const AudioMixer = ({ participants, localParticipant, toggleAudio, toggleVideo, fullWidth = false }) => {
+  // Garantindo valores padrão seguros
+  const safeParticipants = processParticipants(participants || []);
+  const safeLocalParticipant = localParticipant || null;
+  
+  const theme = useTheme();
+  const [selectedInterface, setSelectedInterface] = useState(null);
+  const [audioInterfaces, setAudioInterfaces] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedParticipant, setSelectedParticipant] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    // Simula a obtenção de interfaces de áudio
+    setAudioInterfaces([
+      {
+        id: 'default',
+        name: 'Interface padrão',
+        streams: [
+          { id: 'ch1', name: 'Canal 1', active: true },
+          { id: 'ch2', name: 'Canal 2', active: true }
+        ]
+      }
+    ]);
+  }, []);
+
+  const handleInterfaceChange = (e) => {
+    const interfaceId = e.target.value;
+    const selectedInterface = audioInterfaces.find(i => i.id === interfaceId) || null;
+    setSelectedInterface(selectedInterface);
+  };
+
+  const handleOpenSettings = (participant) => {
+    setSelectedParticipant(participant);
+    setSettingsOpen(true);
+  };
+
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
+  };
+
+  // Verifica se há participantes válidos
+  if (!isValidArray(safeParticipants)) {
+    return (
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography color="grey.300">
+          Nenhum participante na sala
         </Typography>
       </Box>
+    );
+  }
 
-      {/* Interface Section */}
-      <Box sx={{ 
-        p: 2, 
-        bgcolor: theme.palette.background.default,
-        borderRadius: '12px',
-        border: `1px solid ${theme.palette.divider}`
-      }}>
-        <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-          <SettingsInputComponent color="primary" />
-          <Typography variant="subtitle1" color="primary" fontWeight="500">
-            {t('mixer.interface')}
-          </Typography>
-        </Stack>
+  // Função segura para alternar áudio
+  const safeToggleAudio = () => {
+    if (typeof toggleAudio === 'function') {
+      try {
+        toggleAudio();
+      } catch (e) {
+        console.error('Erro ao alternar áudio:', e);
+      }
+    }
+  };
 
-        <FormControl fullWidth variant="outlined" size="small">
+  // Função segura para alternar vídeo
+  const safeToggleVideo = () => {
+    if (typeof toggleVideo === 'function') {
+      try {
+        toggleVideo();
+      } catch (e) {
+        console.error('Erro ao alternar vídeo:', e);
+      }
+    }
+  };
+  
+  // Ajustar tamanho dos cards com base no modo fullWidth
+  const cardsPerRow = fullWidth ? { xs: 2, sm: 3, md: 4, lg: 5 } : { xs: 12, sm: 6, md: 4, lg: 3 };
+  
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%', maxWidth: fullWidth ? '90%' : '100%', mx: 'auto' }}>
+      {/* Interface Selection */}
+      <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: '#2a2a2a' }}>
+        <FormControl fullWidth size="small">
+          <InputLabel sx={{ color: 'white' }}>Interface de Áudio</InputLabel>
           <Select
-            value={interfaceId}
+            value={safe(selectedInterface, 'id', '')}
+            label="Interface de Áudio"
             onChange={handleInterfaceChange}
-            displayEmpty
-            sx={{
-              bgcolor: theme.palette.background.paper,
+            sx={{ 
+              color: 'white',
               '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: theme.palette.divider,
-              },
+                borderColor: 'grey.700'
+              }
             }}
           >
             <MenuItem value="">
-              <em>{t('mixer.noInterface')}</em>
+              <em>Nenhuma</em>
             </MenuItem>
-            {interfaces.map((iface) => (
-              <MenuItem key={iface.id} value={iface.id}>
-                {iface.name} ({iface.channels.length} {t('mixer.channels')})
+            {ensureArray(audioInterfaces).map(interface_ => (
+              <MenuItem key={interface_.id} value={interface_.id}>
+                {interface_.name}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
 
-        {interfaceError && (
-          <Alert 
-            severity="warning" 
-            icon={<Warning />}
-            sx={{ mt: 2 }}
-          >
-            {interfaceError}
-          </Alert>
-        )}
-
+        {/* Stream Indicators */}
         {selectedInterface && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" color="primary" gutterBottom>
-              {selectedInterface.name}
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              {selectedInterface.streams.map((stream, index) => (
-                <Tooltip 
-                  key={stream.id} 
-                  title={stream.active ? t('mixer.channelActive') : t('mixer.channelInactive')}
-                >
+          <Box sx={{ mt: 1 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="caption" sx={{ color: 'grey.400' }}>
+                Canais ativos:
+              </Typography>
+              {ensureArray(safe(selectedInterface, 'streams', [])).map((stream, index) => (
+                <Tooltip key={stream.id} title={stream.name || `Canal ${index + 1}`}>
                   <Box
                     sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '8px',
-                      bgcolor: stream.active ? 'success.main' : 'error.main',
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      bgcolor: stream.active ? 'success.main' : 'action.disabled',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: `2px solid ${theme.palette.background.paper}`,
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      boxShadow: stream.active ? '0 0 6px rgba(0,200,50,0.5)' : 'none'
                     }}
                   >
-                    <Typography variant="caption" color="white" fontWeight="bold">
+                    <Typography variant="caption" sx={{ fontSize: '10px', color: 'white' }}>
                       {index + 1}
                     </Typography>
                   </Box>
@@ -216,344 +699,47 @@ function AudioMixer({ users }) {
             </Stack>
           </Box>
         )}
-      </Box>
+      </Paper>
 
-      {/* Channels Section */}
-      <Box 
-        sx={{ 
-          flex: 1,
-          overflowY: 'auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: 2,
-          p: 1,
+      {/* Participants Grid */}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+        <Grid container spacing={2} sx={{ p: 0.5 }}>
+          {safeParticipants.map((participant) => (
+            <Grid item xs={cardsPerRow.xs} sm={cardsPerRow.sm} md={cardsPerRow.md} lg={cardsPerRow.lg} key={participant.id}>
+              <ParticipantCard 
+                participant={participant} 
+                selectedInterface={selectedInterface}
+                onOpenSettings={handleOpenSettings}
+              />
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+      
+      {/* Drawer de configurações avançadas */}
+      <Drawer
+        anchor="right"
+        open={settingsOpen}
+        onClose={handleCloseSettings}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: {
+              xs: '100%',
+              sm: 400,
+            },
+            bgcolor: '#1e1e1e',
+          },
         }}
       >
-        {users
-          .filter(Boolean) // Filtra apenas usuários válidos
-          .map(user => {
-            const hasInterface = selectedInterface?.streams.some(s => s.active);
-            const isExpanded = expandedUsers.has(user.id);
-            const isLocal = user.isLocal;
-
-            return (
-              <Paper
-                key={user.id}
-                elevation={1}
-                sx={{
-                  p: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 2,
-                  borderRadius: '12px',
-                  transition: 'all 0.2s ease-in-out',
-                  opacity: hasInterface ? 1 : 0.7,
-                  border: `1px solid ${theme.palette.divider}`,
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  },
-                  ...(isLocal && {
-                    border: `2px solid ${theme.palette.primary.main}`,
-                    boxShadow: `0 0 0 1px ${theme.palette.primary.main}`,
-                  }),
-                }}
-              >
-                {/* User Info */}
-                <Box sx={{ textAlign: 'center', width: '100%' }}>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        bgcolor: theme.palette.primary.main,
-                        border: `3px solid ${theme.palette.background.paper}`,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      }}
-                    >
-                      {getInitials(user.name)}
-                    </Avatar>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle2" noWrap fontWeight="500">
-                        {user.name}
-                      </Typography>
-                      {user.instrument && (
-                        <Stack 
-                          direction="row" 
-                          alignItems="center" 
-                          spacing={0.5}
-                        >
-                          <MusicNote sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" noWrap>
-                            {user.instrument}
-                          </Typography>
-                        </Stack>
-                      )}
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleExpandToggle(user.id)}
-                      sx={{ color: 'primary.main' }}
-                    >
-                      {isExpanded ? <ExpandLess /> : <ExpandMore />}
-                    </IconButton>
-                  </Stack>
-                </Box>
-
-                {/* Main Controls */}
-                <Box 
-                  sx={{ 
-                    width: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}
-                >
-                  {/* Gain Control */}
-                  <Box sx={{ width: '100%', mb: 1 }}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Speed color="primary" sx={{ fontSize: '1.2rem' }} />
-                      <Typography variant="caption" color="primary" fontWeight="500">
-                        GAIN
-                      </Typography>
-                      <Box 
-                        sx={{ 
-                          px: 1, 
-                          py: 0.25, 
-                          bgcolor: 'background.default',
-                          borderRadius: 1,
-                          border: `1px solid ${theme.palette.divider}`,
-                        }}
-                      >
-                        <Typography variant="caption" fontWeight="500">
-                          {/* gain.toFixed(1) */}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                    <Slider
-                      // value={gain}
-                      // onChange={(_, value) => handleGainChange(user.id, value)}
-                      min={0}
-                      max={2}
-                      step={0.1}
-                      disabled={!hasInterface}
-                      size="small"
-                      sx={{
-                        color: theme.palette.warning.main,
-                        '& .MuiSlider-thumb': {
-                          width: 16,
-                          height: 16,
-                        },
-                      }}
-                    />
-                  </Box>
-
-                  {/* Volume Display */}
-                  <Paper
-                    sx={{
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: '4px',
-                      bgcolor: theme.palette.background.default,
-                      border: `1px solid ${theme.palette.divider}`,
-                      minWidth: 40,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <Typography 
-                      variant="caption" 
-                      fontWeight="500"
-                      color={'text.primary'}
-                    >
-                      {/* volume */}
-                    </Typography>
-                  </Paper>
-
-                  {/* Vertical Fader */}
-                  <Box sx={{ height: 150 }}>
-                    <Slider
-                      // value={volume}
-                      // onChange={(_, newValue) => handleVolumeChange(user.id, newValue)}
-                      disabled={!hasInterface}
-                      min={0}
-                      max={100}
-                      orientation="vertical"
-                      sx={{
-                        '& .MuiSlider-thumb': {
-                          width: 28,
-                          height: 28,
-                          bgcolor: theme.palette.background.paper,
-                          border: `2px solid ${theme.palette.primary.main}`,
-                          '&:hover, &.Mui-focusVisible': {
-                            boxShadow: `0px 0px 0px 8px ${theme.palette.primary.main}20`,
-                          },
-                        },
-                        '& .MuiSlider-track': {
-                          width: 8,
-                          borderRadius: 4,
-                          bgcolor: theme.palette.primary.main,
-                        },
-                        '& .MuiSlider-rail': {
-                          width: 8,
-                          borderRadius: 4,
-                          bgcolor: theme.palette.divider,
-                        },
-                      }}
-                    />
-                  </Box>
-
-                  {/* Mute Button */}
-                  <Tooltip title={'Mute'}>
-                    <IconButton
-                      // onClick={() => handleMuteToggle(user.id)}
-                      color={'primary'}
-                      disabled={!hasInterface}
-                      size="small"
-                      sx={{
-                        border: `2px solid ${theme.palette.primary.main}`,
-                        '&:hover': {
-                          bgcolor: 'primary.main',
-                          '& .MuiSvgIcon-root': {
-                            color: 'white',
-                          },
-                        },
-                      }}
-                    >
-                      <VolumeUp />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-
-                {/* EQ Controls */}
-                <Collapse in={isExpanded} sx={{ width: '100%' }}>
-                  <Box sx={{ mt: 2, width: '100%' }}>
-                    <Stack direction="row" alignItems="center" spacing={1} mb={1}>
-                      <Equalizer color="primary" sx={{ fontSize: '1.2rem' }} />
-                      <Typography variant="caption" color="primary" fontWeight="500">
-                        EQ
-                      </Typography>
-                    </Stack>
-                    
-                    {/* High */}
-                    <Box sx={{ mb: 2 }}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          HIGH
-                        </Typography>
-                        <Box 
-                          sx={{ 
-                            px: 1, 
-                            py: 0.25, 
-                            bgcolor: 'background.default',
-                            borderRadius: 1,
-                            border: `1px solid ${theme.palette.divider}`,
-                          }}
-                        >
-                          <Typography variant="caption">
-                            {/* eq.high */}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Slider
-                        // value={eq.high}
-                        // onChange={(_, value) => handleEQChange(user.id, 'high', value)}
-                        min={-12}
-                        max={12}
-                        disabled={!hasInterface}
-                        size="small"
-                        sx={{
-                          color: theme.palette.info.main,
-                          '& .MuiSlider-thumb': {
-                            width: 16,
-                            height: 16,
-                          },
-                        }}
-                      />
-                    </Box>
-
-                    {/* Mid */}
-                    <Box sx={{ mb: 2 }}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          MID
-                        </Typography>
-                        <Box 
-                          sx={{ 
-                            px: 1, 
-                            py: 0.25, 
-                            bgcolor: 'background.default',
-                            borderRadius: 1,
-                            border: `1px solid ${theme.palette.divider}`,
-                          }}
-                        >
-                          <Typography variant="caption">
-                            {/* eq.mid */}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Slider
-                        // value={eq.mid}
-                        // onChange={(_, value) => handleEQChange(user.id, 'mid', value)}
-                        min={-12}
-                        max={12}
-                        disabled={!hasInterface}
-                        size="small"
-                        sx={{
-                          color: theme.palette.success.main,
-                          '& .MuiSlider-thumb': {
-                            width: 16,
-                            height: 16,
-                          },
-                        }}
-                      />
-                    </Box>
-
-                    {/* Low */}
-                    <Box>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          LOW
-                        </Typography>
-                        <Box 
-                          sx={{ 
-                            px: 1, 
-                            py: 0.25, 
-                            bgcolor: 'background.default',
-                            borderRadius: 1,
-                            border: `1px solid ${theme.palette.divider}`,
-                          }}
-                        >
-                          <Typography variant="caption">
-                            {/* eq.low */}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Slider
-                        // value={eq.low}
-                        // onChange={(_, value) => handleEQChange(user.id, 'low', value)}
-                        min={-12}
-                        max={12}
-                        disabled={!hasInterface}
-                        size="small"
-                        sx={{
-                          color: theme.palette.error.main,
-                          '& .MuiSlider-thumb': {
-                            width: 16,
-                            height: 16,
-                          },
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                </Collapse>
-              </Paper>
-            );
-          })}
-      </Box>
-    </Paper>
+        {selectedParticipant && (
+          <AdvancedSettings
+            participant={selectedParticipant}
+            onClose={handleCloseSettings}
+          />
+        )}
+      </Drawer>
+    </Box>
   );
-}
+};
 
 export default AudioMixer;

@@ -4,7 +4,7 @@ import { VideocamOff as VideocamOffIcon } from '@mui/icons-material';
 import useWebRTC from '../hooks/useWebRTC';
 import { useSocket } from '../hooks/useSocket';
 
-const VideoTile = ({ participant }) => {
+const VideoTile = ({ participant, isLocal, numberOfParticipants }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -53,7 +53,7 @@ const VideoTile = ({ participant }) => {
         ref={videoRef}
         autoPlay
         playsInline
-        muted={participant.isLocal}
+        muted={isLocal}
         style={{
           width: '100%',
           height: '100%',
@@ -72,7 +72,7 @@ const VideoTile = ({ participant }) => {
         }}
       >
         <Typography variant="subtitle2">
-          {participant.name} {participant.isLocal && '(Você)'} - {participant.instrument}
+          {participant.name} {isLocal && '(Você)'} - {participant.instrument}
         </Typography>
       </Box>
     </Box>
@@ -81,7 +81,7 @@ const VideoTile = ({ participant }) => {
 
 const VideoGrid = () => {
   const { socket } = useSocket();
-  const { localStream, remoteStreams, audioEnabled, videoEnabled } = useWebRTC();
+  const { localStream, remoteStreams, audioEnabled, videoEnabled, localParticipantId } = useWebRTC();
 
   const participants = [
     ...(localStream ? [{ 
@@ -101,63 +101,40 @@ const VideoGrid = () => {
     }))
   ];
 
-  const calculateGridSize = (count) => {
-    if (count <= 1) return { cols: 1, rows: 1 };
-    if (count <= 2) return { cols: 2, rows: 1 };
-    if (count <= 4) return { cols: 2, rows: 2 };
-    if (count <= 6) return { cols: 3, rows: 2 };
-    if (count <= 9) return { cols: 3, rows: 3 };
-    return { cols: 4, rows: Math.ceil(count / 4) };
-  };
-
-  const { cols, rows } = calculateGridSize(participants.length);
-  const height = `${100 / rows}%`;
-  const minHeight = `${100 / Math.max(rows, 2)}%`;
-
-  if (participants.length === 0) {
-    return (
-      <Box
-        sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 3
-        }}
-      >
-        <Typography variant="h6" color="text.secondary">
-          Nenhum participante com vídeo
-        </Typography>
-      </Box>
-    );
-  }
+  const participantsCount = participants.length;
 
   return (
-    <Box sx={{ height: '100%', p: 1 }}>
-      <Grid
-        container
-        spacing={1}
-        sx={{
-          height: '100%',
-          '& .MuiGrid-item': {
-            height,
-            minHeight
-          }
-        }}
-      >
-        {participants.map((participant) => (
-          <Grid
-            key={participant.id}
-            item
-            xs={12 / cols}
-            sx={{
-              aspectRatio: '16/9'
-            }}
-          >
-            <VideoTile participant={participant} />
-          </Grid>
-        ))}
-      </Grid>
+    <Box
+      sx={{
+        width: '100%',
+        height: '100%',
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: participantsCount <= 1 ? '1fr' : 'repeat(2, 1fr)', 
+          sm: participantsCount <= 1 ? '1fr' : participantsCount <= 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+          md: participantsCount <= 1 ? '1fr' : participantsCount <= 4 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+          lg: participantsCount <= 1 ? '1fr' : participantsCount <= 4 ? 'repeat(2, 1fr)' : participantsCount <= 6 ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)',
+        },
+        gridTemplateRows: {
+          xs: participantsCount <= 2 ? '1fr' : 'repeat(auto-fill, 1fr)',
+          sm: participantsCount <= 2 ? '1fr' : participantsCount <= 6 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+          md: participantsCount <= 3 ? '1fr' : participantsCount <= 6 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+          lg: participantsCount <= 4 ? '1fr' : participantsCount <= 8 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+        },
+        gap: { xs: 1, sm: 2 },
+        overflow: 'hidden',
+        placeItems: 'center',
+        placeContent: 'center',
+      }}
+    >
+      {participants.map((participant) => (
+        <VideoTile
+          key={participant.id}
+          participant={participant}
+          isLocal={participant.id === localParticipantId}
+          numberOfParticipants={participantsCount}
+        />
+      ))}
     </Box>
   );
 };

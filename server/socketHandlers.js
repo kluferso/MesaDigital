@@ -143,6 +143,50 @@ function handleSocketConnection(io, socket) {
     });
   });
 
+  // Manipulador de mensagens de chat
+  const handleChatMessage = (io, socket, { roomId, message }) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+      socket.emit('error', { message: 'Sala não encontrada' });
+      return;
+    }
+
+    // Garantir que o remetente esteja na sala
+    if (!room.users.some(user => user.id === socket.id)) {
+      socket.emit('error', { message: 'Você não está nesta sala' });
+      return;
+    }
+
+    // Adicionar informações do remetente à mensagem
+    const user = room.users.find(user => user.id === socket.id);
+    const enrichedMessage = {
+      ...message,
+      sender: socket.id,
+      senderName: user.name,
+      instrument: user.instrument
+    };
+
+    // Enviar mensagem para todos na sala
+    io.to(roomId).emit('chat_message', enrichedMessage);
+    
+    // Opcional: armazenar mensagens recentes para novos participantes
+    if (!room.messages) {
+      room.messages = [];
+    }
+    
+    // Limitando a 50 mensagens recentes por sala
+    room.messages.push(enrichedMessage);
+    if (room.messages.length > 50) {
+      room.messages.shift();
+    }
+    
+    console.log(`Mensagem de chat em ${roomId} de ${user.name}: ${message.text.substring(0, 30)}...`);
+  };
+
+  socket.on('chat_message', (data) => {
+    handleChatMessage(io, socket, data);
+  });
+
   // Handlers de mídia
   socket.on('track_toggle', (data) => {
     const { type, enabled } = data;
