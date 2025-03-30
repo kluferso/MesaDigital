@@ -1,7 +1,7 @@
 import os
 import logging
 import subprocess
-import importlib
+import shutil
 
 # Configurar logging
 logging.basicConfig(
@@ -14,6 +14,8 @@ def run_git_pull():
     try:
         # No PythonAnywhere, o diretório é /home/kluferso/MesaDigital
         project_dir = '/home/kluferso/MesaDigital'
+        wsgi_source = os.path.join(project_dir, 'server', 'pythonanywhere_wsgi.py')
+        wsgi_target = '/var/www/kluferso_pythonanywhere_com_wsgi.py'
         
         # Executa git pull com o caminho completo do git
         logging.info("Executando git pull...")
@@ -74,10 +76,17 @@ def run_git_pull():
         )
         logging.info(f"Status do git: {status.stdout}")
         
+        # Copia o arquivo WSGI atualizado
+        logging.info(f"Copiando {wsgi_source} para {wsgi_target}")
+        shutil.copy2(wsgi_source, wsgi_target)
+        logging.info("Arquivo WSGI atualizado com sucesso!")
+        
         # Recarrega o módulo atual
-        logging.info("Recarregando módulo...")
-        importlib.reload(importlib.import_module(__name__))
-        logging.info("Módulo recarregado com sucesso!")
+        subprocess.run(
+            ['touch', wsgi_target],
+            check=True
+        )
+        logging.info("Arquivo WSGI recarregado!")
             
         return True, "Repository updated successfully"
     except subprocess.CalledProcessError as e:
@@ -133,7 +142,7 @@ def application(environ, start_response):
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return [b"MesaDigital Webhook Service - v1.6"]
+        return [b"MesaDigital Webhook Service - v1.7"]
         
     except Exception as e:
         # Log do erro
