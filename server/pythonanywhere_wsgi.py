@@ -23,8 +23,12 @@ def serve_static_file(environ, start_response, path):
             
         # Se for a raiz ou uma rota do React, serve o index.html
         if path == '' or not path.startswith('static/'):
-            path = 'index.html'
-            
+            # Primeiro tenta o caminho exato
+            file_path = os.path.join('/home/kluferso/MesaDigital/build', path)
+            if not os.path.exists(file_path) or os.path.isdir(file_path):
+                # Se não existir ou for diretório, usa index.html
+                path = 'index.html'
+                
         # Caminho completo do arquivo
         file_path = os.path.join('/home/kluferso/MesaDigital/build', path)
         logging.info(f"Tentando servir arquivo: {file_path}")
@@ -139,7 +143,8 @@ def proxy_request(environ, start_response):
             url=url,
             headers=headers,
             data=body,
-            stream=True
+            stream=True,
+            timeout=10  # Timeout de 10 segundos
         )
         
         # Log da resposta
@@ -154,6 +159,20 @@ def proxy_request(environ, start_response):
         
         # Retorna o conteúdo
         return [chunk for chunk in response.iter_content()]
+        
+    except requests.exceptions.Timeout:
+        logging.error("Timeout ao conectar com o servidor Node.js")
+        status = '504 Gateway Timeout'
+        headers = [('Content-Type', 'text/plain')]
+        start_response(status, headers)
+        return [b"Timeout connecting to Node.js server"]
+        
+    except requests.exceptions.ConnectionError:
+        logging.error("Erro de conexão com o servidor Node.js")
+        status = '502 Bad Gateway'
+        headers = [('Content-Type', 'text/plain')]
+        start_response(status, headers)
+        return [b"Could not connect to Node.js server"]
         
     except Exception as e:
         logging.error(f"Erro ao encaminhar requisição: {str(e)}", exc_info=True)
