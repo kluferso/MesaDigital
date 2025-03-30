@@ -24,7 +24,10 @@ npm install -g pm2
 
 # Build do React
 echo "Fazendo build do React..."
-npm run build
+cd $PROJECT_DIR
+rm -rf build
+CI=false npm run build
+chmod -R 755 build
 
 # Instala dependências do Python
 echo "Instalando dependências do Python..."

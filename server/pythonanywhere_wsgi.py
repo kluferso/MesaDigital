@@ -26,14 +26,30 @@ def serve_static_file(environ, start_response, path):
             
         # Caminho completo do arquivo
         file_path = os.path.join('/home/kluferso/MesaDigital/build', path)
+        logging.info(f"Tentando servir arquivo: {file_path}")
         
         # Verifica se o arquivo existe
         if not os.path.exists(file_path):
             logging.error(f"Arquivo não encontrado: {file_path}")
-            status = '404 Not Found'
-            headers = [('Content-Type', 'text/plain')]
-            start_response(status, headers)
-            return [b"File not found"]
+            
+            # Se o arquivo não existe, tenta servir o index.html
+            if path != 'index.html':
+                logging.info("Tentando servir index.html...")
+                index_path = os.path.join('/home/kluferso/MesaDigital/build', 'index.html')
+                if os.path.exists(index_path):
+                    file_path = index_path
+                    logging.info("Usando index.html")
+                else:
+                    logging.error("index.html também não encontrado")
+                    status = '404 Not Found'
+                    headers = [('Content-Type', 'text/plain')]
+                    start_response(status, headers)
+                    return [b"File not found"]
+            else:
+                status = '404 Not Found'
+                headers = [('Content-Type', 'text/plain')]
+                start_response(status, headers)
+                return [b"File not found"]
             
         # Determina o tipo MIME
         content_type, _ = mimetypes.guess_type(file_path)
@@ -48,6 +64,7 @@ def serve_static_file(environ, start_response, path):
         status = '200 OK'
         headers = [('Content-Type', content_type)]
         start_response(status, headers)
+        logging.info(f"Arquivo servido com sucesso: {file_path}")
         return [content]
         
     except Exception as e:
@@ -73,6 +90,7 @@ def proxy_request(environ, start_response):
         
         # Constrói a URL completa
         url = f"{node_url}{path}"
+        logging.info(f"Encaminhando requisição para: {url}")
         
         # Obtém o corpo da requisição para POST/PUT
         content_length = int(environ.get('CONTENT_LENGTH', 0))
