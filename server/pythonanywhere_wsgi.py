@@ -14,12 +14,46 @@ def run_git_pull():
         # No PythonAnywhere, o diretório é /home/kluferso/MesaDigital
         project_dir = '/home/kluferso/MesaDigital'
         
-        # Executa git pull
+        # Executa git pull com o caminho completo do git
         logging.info("Executando git pull...")
         logging.info(f"Diretório do projeto: {project_dir}")
         
+        # Primeiro, tenta encontrar o git
+        git_path = subprocess.run(
+            ['which', 'git'],
+            capture_output=True,
+            text=True
+        ).stdout.strip()
+        
+        logging.info(f"Git encontrado em: {git_path}")
+        
+        # Configura o git se necessário
+        subprocess.run(
+            ['git', 'config', '--global', 'user.email', 'kluferso@gmail.com'],
+            cwd=project_dir,
+            check=True
+        )
+        subprocess.run(
+            ['git', 'config', '--global', 'user.name', 'kluferso'],
+            cwd=project_dir,
+            check=True
+        )
+        
+        # Força o git a atualizar
+        subprocess.run(
+            ['git', 'fetch', '--all'],
+            cwd=project_dir,
+            check=True
+        )
+        
+        subprocess.run(
+            ['git', 'reset', '--hard', 'origin/main'],
+            cwd=project_dir,
+            check=True
+        )
+        
         result = subprocess.run(
-            ['git', 'pull'],
+            ['git', 'pull', 'origin', 'main'],
             cwd=project_dir,
             check=True,
             capture_output=True,
@@ -29,6 +63,15 @@ def run_git_pull():
         logging.info(f"Saída do git pull: {result.stdout}")
         if result.stderr:
             logging.warning(f"Erros do git pull: {result.stderr}")
+            
+        # Verifica o status atual
+        status = subprocess.run(
+            ['git', 'status'],
+            cwd=project_dir,
+            capture_output=True,
+            text=True
+        )
+        logging.info(f"Status do git: {status.stdout}")
             
         return True, "Repository updated successfully"
     except subprocess.CalledProcessError as e:
@@ -84,7 +127,7 @@ def application(environ, start_response):
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return [b"MesaDigital Webhook Service - v1.3"]
+        return [b"MesaDigital Webhook Service - v1.4"]
         
     except Exception as e:
         # Log do erro
