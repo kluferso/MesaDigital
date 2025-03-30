@@ -19,7 +19,8 @@ import {
   Tab,
   FormControlLabel,
   Switch,
-  Stack
+  Stack,
+  Snackbar
 } from '@mui/material';
 import {
   MusicNote as MusicIcon,
@@ -106,43 +107,42 @@ export default function LoginScreen() {
     setIsLoading(true);
     setError(null);
 
-    socket.once('create_room_success', ({ room: createdRoom }) => {
-      console.log('create_room_success recebido:', createdRoom);
-      setIsLoading(false);
-      navigate(`/room/${createdRoom.id}`, {
-        replace: true,
-        state: {
-          name,
-          instrument,
-          isAdmin: true,
-          initialAudioEnabled: audioEnabled,
-          initialVideoEnabled: videoEnabled
-        }
-      });
-    });
-
-    socket.once('create_room_error', ({ message }) => {
-      console.error('create_room_error recebido:', message);
-      setError(`Erro ao criar sala: ${message}`);
-      setIsLoading(false);
-    });
-
-    socket.emit('create_room', { 
-      name, 
-      instrument, 
-      noMedia: !audioEnabled && !videoEnabled
-    });
-
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        setError('Tempo limite excedido ao criar a sala. Tente novamente.');
-        setIsLoading(false);
-        socket.off('create_room_success');
-        socket.off('create_room_error');
+    try {
+      if (!socket) {
+        throw new Error('Não foi possível conectar ao servidor');
       }
-    }, 10000);
 
-    return () => clearTimeout(timeoutId);
+      socket.once('create_room_success', ({ room: createdRoom }) => {
+        console.log('create_room_success recebido:', createdRoom);
+        setIsLoading(false);
+        navigate(`/room/${createdRoom.id}`, {
+          replace: true,
+          state: {
+            name,
+            instrument,
+            isAdmin: true,
+            initialAudioEnabled: audioEnabled,
+            initialVideoEnabled: videoEnabled
+          }
+        });
+      });
+
+      socket.once('create_room_error', ({ message }) => {
+        console.error('create_room_error recebido:', message);
+        setError(`Erro ao criar sala: ${message}`);
+        setIsLoading(false);
+      });
+
+      socket.emit('create_room', { 
+        name, 
+        instrument, 
+        noMedia: !audioEnabled && !videoEnabled
+      });
+
+    } catch (err) {
+      setIsLoading(false);
+      setError('Erro ao conectar com o servidor');
+    }
   }, [name, instrument, audioEnabled, videoEnabled, socket, connected, navigate, isLoading]);
 
   const handleJoinRoom = useCallback(() => {
@@ -158,44 +158,43 @@ export default function LoginScreen() {
     setIsLoading(true);
     setError(null);
 
-    socket.once('join_room_success', ({ room: joinedRoom }) => {
-      console.log('join_room_success recebido:', joinedRoom);
-      setIsLoading(false);
-      navigate(`/room/${joinedRoom.id}`, {
-        replace: true,
-        state: {
-          name,
-          instrument,
-          isAdmin: false,
-          initialAudioEnabled: audioEnabled,
-          initialVideoEnabled: videoEnabled
-        }
-      });
-    });
-
-    socket.once('join_room_error', ({ message }) => {
-      console.error('join_room_error recebido:', message);
-      setError(`Erro ao entrar na sala: ${message}`);
-      setIsLoading(false);
-    });
-
-    socket.emit('join_room', { 
-      roomId: room, 
-      name, 
-      instrument, 
-      hasMedia: audioEnabled || videoEnabled
-    });
-
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        setError('Tempo limite excedido ao entrar na sala. Tente novamente.');
-        setIsLoading(false);
-        socket.off('join_room_success');
-        socket.off('join_room_error');
+    try {
+      if (!socket) {
+        throw new Error('Não foi possível conectar ao servidor');
       }
-    }, 10000);
 
-    return () => clearTimeout(timeoutId);
+      socket.once('join_room_success', ({ room: joinedRoom }) => {
+        console.log('join_room_success recebido:', joinedRoom);
+        setIsLoading(false);
+        navigate(`/room/${joinedRoom.id}`, {
+          replace: true,
+          state: {
+            name,
+            instrument,
+            isAdmin: false,
+            initialAudioEnabled: audioEnabled,
+            initialVideoEnabled: videoEnabled
+          }
+        });
+      });
+
+      socket.once('join_room_error', ({ message }) => {
+        console.error('join_room_error recebido:', message);
+        setError(`Erro ao entrar na sala: ${message}`);
+        setIsLoading(false);
+      });
+
+      socket.emit('join_room', { 
+        roomId: room, 
+        name, 
+        instrument, 
+        hasMedia: audioEnabled || videoEnabled
+      });
+
+    } catch (err) {
+      setIsLoading(false);
+      setError('Erro ao conectar com o servidor');
+    }
   }, [name, room, instrument, audioEnabled, videoEnabled, socket, connected, navigate, isLoading]);
 
   const handleCopyRoomId = () => {
@@ -422,9 +421,16 @@ export default function LoginScreen() {
           </TabPanel>
 
           {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
-            </Alert>
+            <Snackbar 
+              open={!!error} 
+              autoHideDuration={6000} 
+              onClose={() => setError('')}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+              <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+                {error}
+              </Alert>
+            </Snackbar>
           )}
         </Box>
       </Paper>

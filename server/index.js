@@ -29,6 +29,12 @@ app.use(express.static(path.join(__dirname, '../build')));
 const rooms = new Map();
 const users = new Map();
 
+// Middleware para logging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
 // Função para limpar recursos de um usuário
 const cleanupUser = (socket, userId) => {
   const userData = users.get(userId);
