@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,10 +8,14 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
+  path: '/socket.io',
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
   },
+  allowEIO3: true,
+  transports: ['websocket', 'polling'],
   pingTimeout: 10000,
   pingInterval: 5000
 });

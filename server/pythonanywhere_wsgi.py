@@ -82,7 +82,7 @@ def proxy_request(environ, start_response):
         method = environ.get('REQUEST_METHOD', '')
         
         # Se for uma requisição de arquivo estático ou a raiz, serve o arquivo
-        if path == '/' or not path.startswith('/api/'):
+        if path == '/' or (not path.startswith('/api/') and not path.startswith('/socket.io/')):
             return serve_static_file(environ, start_response, path)
         
         # URL base do servidor Node.js
@@ -106,6 +106,11 @@ def proxy_request(environ, start_response):
         # Remove headers problemáticos
         headers.pop('HOST', None)
         
+        # Adiciona headers específicos para WebSocket
+        if path.startswith('/socket.io/'):
+            headers['Connection'] = environ.get('HTTP_CONNECTION', '')
+            headers['Upgrade'] = environ.get('HTTP_UPGRADE', '')
+            
         # Faz a requisição para o Node.js
         response = requests.request(
             method=method,

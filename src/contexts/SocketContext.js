@@ -3,66 +3,46 @@ import io from 'socket.io-client';
 
 const SocketContext = createContext();
 
-export const useSocket = () => {
-  return useContext(SocketContext);
-};
+export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
-  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    console.log('Initializing socket connection...');
-    
-    const newSocket = io('/', {
+    // Em produção, usa o mesmo domínio do site
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? window.location.origin
+      : 'http://localhost:3000';
+
+    const newSocket = io(baseUrl, {
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
-      autoConnect: true,
-      reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      withCredentials: true
+      timeout: 20000
     });
 
     newSocket.on('connect', () => {
-      console.log('Socket connected:', newSocket.id);
-      setConnected(true);
-    });
-
-    newSocket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
-      setConnected(false);
+      console.log('Socket conectado!');
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-      setConnected(false);
-    });
-
-    newSocket.on('reconnect', (attemptNumber) => {
-      console.log('Socket reconnected after', attemptNumber, 'attempts');
-      setConnected(true);
-    });
-
-    newSocket.on('reconnect_error', (error) => {
-      console.error('Socket reconnection error:', error);
+      console.error('Erro de conexão:', error);
     });
 
     newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
+      console.error('Socket connection error:', error);
     });
 
     setSocket(newSocket);
 
     return () => {
-      console.log('Cleaning up socket connection...');
-      if (newSocket) {
-        newSocket.disconnect();
-      }
+      newSocket.close();
     };
   }, []);
 
   return (
-    <SocketContext.Provider value={{ socket, connected }}>
+    <SocketContext.Provider value={socket}>
       {children}
     </SocketContext.Provider>
   );
