@@ -40,22 +40,12 @@ def run_git_pull():
         logging.error(f"Erro inesperado: {str(e)}")
         return False, f"Unexpected error: {str(e)}"
 
-def log_request(environ):
-    logging.info(f"Recebida requisição: {environ.get('PATH_INFO')}")
-    logging.info(f"Método: {environ.get('REQUEST_METHOD')}")
-    logging.info(f"Headers:")
-    for key, value in environ.items():
-        if key.startswith('HTTP_'):
-            logging.info(f"  {key}: {value}")
-
 def application(environ, start_response):
+    """Função principal da aplicação WSGI."""
     try:
-        log_request(environ)
-        logging.info("Iniciando processamento da requisição")
-        
         # Obter o caminho da requisição
         path_info = environ.get('PATH_INFO', '')
-        logging.info(f"Caminho da requisição: {path_info}")
+        logging.info(f"Recebida requisição para: {path_info}")
         
         # Se for uma requisição para o webhook
         if path_info == '/git-webhook':
