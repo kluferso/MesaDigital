@@ -1,6 +1,7 @@
 import os
 import logging
 import subprocess
+import importlib
 
 # Configurar logging
 logging.basicConfig(
@@ -72,6 +73,11 @@ def run_git_pull():
             text=True
         )
         logging.info(f"Status do git: {status.stdout}")
+        
+        # Recarrega o módulo atual
+        logging.info("Recarregando módulo...")
+        importlib.reload(importlib.import_module(__name__))
+        logging.info("Módulo recarregado com sucesso!")
             
         return True, "Repository updated successfully"
     except subprocess.CalledProcessError as e:
@@ -127,7 +133,7 @@ def application(environ, start_response):
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return [b"MesaDigital Webhook Service - v1.5"]
+        return [b"MesaDigital Webhook Service - v1.6"]
         
     except Exception as e:
         # Log do erro
