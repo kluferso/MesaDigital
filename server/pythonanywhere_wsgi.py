@@ -3,12 +3,66 @@ import logging
 import subprocess
 import shutil
 import stat
+import requests
 
 # Configurar logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='/home/kluferso/MesaDigital/server/webapp.log'
 )
+
+def proxy_request(environ, start_response):
+    """Encaminha a requisição para o servidor Node.js."""
+    try:
+        # Obtém o path da requisição
+        path = environ.get('PATH_INFO', '')
+        method = environ.get('REQUEST_METHOD', '')
+        
+        # URL base do servidor Node.js
+        node_url = 'http://localhost:3000'
+        
+        # Constrói a URL completa
+        url = f"{node_url}{path}"
+        
+        # Obtém o corpo da requisição para POST/PUT
+        content_length = int(environ.get('CONTENT_LENGTH', 0))
+        body = environ['wsgi.input'].read(content_length) if content_length > 0 else None
+        
+        # Obtém os headers
+        headers = {
+            key[5:]: value 
+            for key, value in environ.items() 
+            if key.startswith('HTTP_')
+        }
+        
+        # Remove headers problemáticos
+        headers.pop('HOST', None)
+        
+        # Faz a requisição para o Node.js
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            data=body,
+            stream=True
+        )
+        
+        # Prepara a resposta
+        start_response(
+            f'{response.status_code} {response.reason}',
+            list(response.headers.items())
+        )
+        
+        # Retorna o conteúdo
+        return [chunk for chunk in response.iter_content()]
+        
+    except Exception as e:
+        logging.error(f"Erro ao encaminhar requisição: {str(e)}", exc_info=True)
+        status = '500 Internal Server Error'
+        headers = [('Content-Type', 'text/plain')]
+        start_response(status, headers)
+        return [b"Error forwarding request to Node.js server"]
 
 def run_git_pull():
     """Executa git pull para atualizar o código."""
@@ -149,11 +203,8 @@ def application(environ, start_response):
                 error_message = f"Error processing webhook: {str(e)}"
                 return [error_message.encode()]
         
-        # Para outras requisições, retornar uma mensagem padrão
-        status = '200 OK'
-        headers = [('Content-Type', 'text/plain')]
-        start_response(status, headers)
-        return [b"MesaDigital Webhook Service - v1.8"]
+        # Para outras requisições, encaminhar para o Node.js
+        return proxy_request(environ, start_response)
         
     except Exception as e:
         # Log do erro
