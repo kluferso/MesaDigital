@@ -18,16 +18,22 @@ echo "Instalando dependências do Node.js..."
 cd $PROJECT_DIR
 npm install
 
-# Instala PM2 globalmente
-echo "Instalando PM2..."
-npm install -g pm2
+# Instala PM2 globalmente se não estiver instalado
+if ! command -v pm2 &> /dev/null; then
+    echo "Instalando PM2..."
+    npm install -g pm2
+fi
 
 # Build do React
 echo "Fazendo build do React..."
 cd $PROJECT_DIR
 rm -rf build
 CI=false npm run build
-chmod -R 755 build
+
+# Ajusta as permissões do build
+echo "Ajustando permissões..."
+chmod -R 755 $PROJECT_DIR/build
+find $PROJECT_DIR/build -type f -exec chmod 644 {} \;
 
 # Instala dependências do Python
 echo "Instalando dependências do Python..."
@@ -53,5 +59,16 @@ pm2 start index.js --name mesadigital
 # Recarrega o servidor WSGI
 echo "Recarregando servidor WSGI..."
 touch $WSGI_TARGET
+
+# Verifica se o build foi criado
+echo "Verificando build..."
+if [ -f "$PROJECT_DIR/build/index.html" ]; then
+    echo "Build criado com sucesso!"
+    ls -la $PROJECT_DIR/build
+else
+    echo "ERRO: Build não foi criado corretamente!"
+    echo "Conteúdo do diretório build:"
+    ls -la $PROJECT_DIR/build
+fi
 
 echo "Deploy concluído!"
