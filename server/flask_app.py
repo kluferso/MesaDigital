@@ -87,6 +87,12 @@ def github_webhook():
             "message": f"Erro ao iniciar atualização: {str(e)}"
         }), 500
 
+@app.route('/git-webhook', methods=['POST'])
+def github_webhook_compat():
+    """Endpoint alternativo para compatibilidade com webhook existente"""
+    logging.info("Webhook recebido na rota de compatibilidade /git-webhook")
+    return github_webhook()
+
 @app.route('/<path:path>')
 def static_proxy(path):
     """Servir arquivos estáticos da aplicação React."""
