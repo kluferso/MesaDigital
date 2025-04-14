@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     
     <!-- Características opcionais -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -37,10 +39,20 @@
             </intent-filter>
         </activity>
         
-        <!-- Serviço para manter conexão em segundo plano -->
+        <!-- Serviço para manter conexão de áudio WebRTC em segundo plano -->
         <service
             android:name=".service.AudioConnectionService"
-            android:foregroundServiceType="mediaProjection" />
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+            
+        <!-- Receiver para ações da notificação -->
+        <receiver
+            android:name=".service.NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ACTION_DISCONNECT" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

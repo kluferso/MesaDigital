@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 # Configuração de logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Mudado para DEBUG para mais detalhes
+    level=logging.INFO,  # INFO para produção, DEBUG para desenvolvimento
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)
@@ -20,7 +20,7 @@ logging.basicConfig(
 PROJECT_DIR = '/home/kluferso/MesaDigital'
 BUILD_DIR = os.path.join(PROJECT_DIR, 'build')
 NODE_SERVER = 'http://localhost:3000'
-TIMEOUT = 10  # segundos
+TIMEOUT = 15  # Aumentado para 15 segundos para WebRTC
 
 def check_node_server():
     """Verifica se o servidor Node.js está rodando"""
@@ -102,6 +102,10 @@ def proxy_request(environ, start_response):
         if content_type:
             headers['content-type'] = content_type
         
+        # Adiciona CORS headers para Android
+        if environ.get('HTTP_ORIGIN'):
+            headers['origin'] = environ.get('HTTP_ORIGIN')
+        
         # Lê o corpo da requisição
         body = None
         if content_length and content_length != '0':
@@ -110,7 +114,7 @@ def proxy_request(environ, start_response):
         # Log da requisição
         logging.debug(f"Encaminhando {method} {url}")
         logging.debug(f"Headers: {json.dumps(headers)}")
-        if body:
+        if body and logging.getLogger().level == logging.DEBUG:
             try:
                 body_text = body.decode('utf-8')
                 logging.debug(f"Body: {body_text}")
@@ -138,6 +142,15 @@ def proxy_request(environ, start_response):
                 (key, value)
                 for key, value in response.headers.items()
             ]
+            
+            # Adiciona CORS headers se vierem do Android
+            if environ.get('HTTP_USER_AGENT') and 'Android' in environ.get('HTTP_USER_AGENT'):
+                cors_headers = [
+                    ('Access-Control-Allow-Origin', '*'),
+                    ('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'),
+                    ('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                ]
+                response_headers.extend([h for h in cors_headers if h[0] not in dict(response_headers)])
             
             # Inicia a resposta
             start_response(status, response_headers)
@@ -173,12 +186,27 @@ def application(environ, start_response):
         # Log da requisição
         logging.info(f"Requisição recebida: {method} {path_info}")
         
-        # Se for uma requisição para o Socket.IO ou API, encaminha para o Node.js
-        if path_info.startswith('/socket.io/') or path_info.startswith('/api/'):
+        # Tratamento de CORS preflight requests
+        if method == 'OPTIONS':
+            status = '200 OK'
+            headers = [
+                ('Content-Type', 'text/plain'),
+                ('Access-Control-Allow-Origin', '*'),
+                ('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'),
+                ('Access-Control-Allow-Headers', 'Content-Type, Authorization'),
+                ('Access-Control-Max-Age', '86400')  # 24 horas
+            ]
+            start_response(status, headers)
+            return [b'']
+        
+        # Se for uma requisição para o Socket.IO, WebRTC ou API, encaminha para o Node.js
+        if path_info.startswith('/socket.io/') or path_info.startswith('/api/') or path_info.startswith('/webrtc/'):
             return proxy_request(environ, start_response)
         
         # Para todas as outras requisições, tenta servir arquivos estáticos
-        return serve_static_file(path_info)
+        status, headers, content = serve_static_file(path_info)
+        start_response(status, headers)
+        return content
         
     except Exception as e:
         logging.error(f"Erro na aplicação: {str(e)}", exc_info=True)

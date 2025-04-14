@@ -26,12 +26,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Importar handlers de sinalização WebRTC
+const handleWebRTCSignaling = require('./webrtc/signaling');
+
 // Armazena as salas e seus participantes
 const rooms = new Map();
 
 // Gerencia conexões Socket.IO
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado:', socket.id);
+
+  // Aplicar handlers de sinalização WebRTC
+  handleWebRTCSignaling(io, socket, rooms);
 
   // Quando um cliente cria uma sala
   socket.on('create_room', async (data) => {

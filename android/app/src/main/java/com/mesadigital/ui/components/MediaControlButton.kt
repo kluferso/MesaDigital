@@ -7,66 +7,68 @@ import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * Botão de controle de mídia com design moderno
+ * Usado na barra inferior da sala e em outros controles
+ */
 @Composable
 fun MediaControlButton(
     icon: ImageVector,
-    title: String,
-    isActive: Boolean = false,
+    contentDescription: String,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     badgeCount: Int = 0
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = Modifier.padding(4.dp)
     ) {
-        Box {
-            IconButton(
-                onClick = onClick,
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        color = if (isActive) MaterialTheme.colors.primary else Color(0xFF424242),
-                        shape = CircleShape
-                    )
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(
+                    color = when {
+                        enabled -> MaterialTheme.colors.primary.copy(alpha = 0.1f)
+                        else -> Color.Gray.copy(alpha = 0.1f)
+                    }
                 )
-            }
-            
-            // Badge de contagem (para notificações)
-            if (badgeCount > 0) {
-                Badge(
-                    backgroundColor = MaterialTheme.colors.error,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 2.dp, y = (-2).dp)
-                ) {
-                    Text(
-                        text = if (badgeCount > 99) "99+" else badgeCount.toString(),
-                        color = Color.White,
-                        fontSize = 10.sp
-                    )
-                }
-            }
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = when {
+                    enabled -> MaterialTheme.colors.primary
+                    else -> Color.Gray
+                },
+                modifier = Modifier.size(24.dp)
+            )
         }
         
-        Text(
-            text = title,
-            style = MaterialTheme.typography.caption,
-            color = if (isActive) MaterialTheme.colors.primary else Color.White,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.width(56.dp)
-        )
+        // Badge para notificações
+        if (badgeCount > 0) {
+            Badge(
+                backgroundColor = MaterialTheme.colors.secondary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(16.dp)
+            ) {
+                Text(
+                    text = if (badgeCount > 9) "9+" else badgeCount.toString(),
+                    color = Color.White,
+                    fontSize = 8.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }

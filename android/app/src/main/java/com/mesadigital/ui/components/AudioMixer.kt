@@ -1,5 +1,6 @@
 package com.mesadigital.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -14,23 +16,35 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.mesadigital.model.Participant
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mesadigital.audio.WebRTCManager
+import com.mesadigital.ui.room.RoomViewModel
 
+/**
+ * Mixer de áudio moderno inspirado na versão web
+ */
 @Composable
 fun AudioMixer(
-    participants: List<Participant>,
-    onUpdateVolume: (String, Float) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    viewModel: RoomViewModel = viewModel()
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabTitles = listOf("Básico", "Equalizador", "Espacial")
+    val tabTitles = listOf("Mixer", "Equalizador", "Estatísticas")
+    
+    val users by viewModel.users.collectAsState()
+    val userVolumes by viewModel.userVolumes.collectAsState()
+    val localUser by viewModel.localUser.collectAsState()
+    val masterVolume by viewModel.masterVolume.collectAsState()
+    val audioEnabled by viewModel.audioEnabled.collectAsState()
     
     Dialog(
         onDismissRequest = onClose,
@@ -44,7 +58,7 @@ fun AudioMixer(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(0.dp),
-            color = Color(0xFF1E1E1E),
+            color = MaterialTheme.colors.background,
             shape = RoundedCornerShape(0.dp)
         ) {
             Column(
@@ -54,8 +68,8 @@ fun AudioMixer(
             ) {
                 // Cabeçalho
                 TopAppBar(
-                    title = { Text("Mixer de Áudio", color = Color.White) },
-                    backgroundColor = Color(0xFF121212),
+                    title = { Text("Mesa Digital", color = Color.White) },
+                    backgroundColor = MaterialTheme.colors.primary,
                     navigationIcon = {
                         IconButton(onClick = onClose) {
                             Icon(Icons.Default.Close, contentDescription = "Fechar", tint = Color.White)
@@ -71,23 +85,32 @@ fun AudioMixer(
                 // Tabs
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    backgroundColor = Color(0xFF121212),
-                    contentColor = Color(0xFF2196F3)
+                    backgroundColor = MaterialTheme.colors.primaryVariant,
+                    contentColor = Color.White
                 ) {
                     tabTitles.forEachIndexed { index, title ->
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
-                            text = { Text(title, color = if (selectedTab == index) Color(0xFF2196F3) else Color.White) }
+                            text = { Text(title, color = if (selectedTab == index) Color.White else Color.LightGray) }
                         )
                     }
                 }
                 
                 // Conteúdo baseado na tab selecionada
                 when (selectedTab) {
-                    0 -> BasicMixerTab(participants, onUpdateVolume)
+                    0 -> MixerTab(
+                        users = users,
+                        userVolumes = userVolumes,
+                        localUserId = localUser?.id,
+                        masterVolume = masterVolume,
+                        audioEnabled = audioEnabled,
+                        onVolumeChange = { userId, volume -> viewModel.setUserVolume(userId, volume) },
+                        onMasterVolumeChange = { viewModel.setMasterVolume(it) },
+                        onToggleAudio = { viewModel.toggleAudio() }
+                    )
                     1 -> EqualizerTab()
-                    2 -> SpatialTab()
+                    2 -> StatisticsTab()
                 }
             }
         }
@@ -95,73 +118,209 @@ fun AudioMixer(
 }
 
 @Composable
-fun BasicMixerTab(
-    participants: List<Participant>,
-    onUpdateVolume: (String, Float) -> Unit
+fun MixerTab(
+    users: List<WebRTCManager.User>,
+    userVolumes: Map<String, Float>,
+    localUserId: String?,
+    masterVolume: Float,
+    audioEnabled: Boolean,
+    onVolumeChange: (String, Float) -> Unit,
+    onMasterVolumeChange: (Float) -> Unit,
+    onToggleAudio: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(8.dp)
+            .padding(16.dp)
     ) {
-        Text(
-            text = "Canais de Áudio",
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-        
-        // Grid de Participantes
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 150.dp),
-            contentPadding = PaddingValues(4.dp),
-            modifier = Modifier.weight(1f)
+        // Seção de volume master
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            elevation = 4.dp,
+            backgroundColor = MaterialTheme.colors.surface
         ) {
-            items(participants) { participant ->
-                ParticipantMixerCard(
-                    participant = participant,
-                    onVolumeChange = { volume -> onUpdateVolume(participant.id, volume) }
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Volume Master",
+                    style = MaterialTheme.typography.h6,
+                    fontWeight = FontWeight.Bold
                 )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { onMasterVolumeChange(if (masterVolume > 0f) 0f else 1f) }
+                    ) {
+                        Icon(
+                            imageVector = if (masterVolume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
+                            contentDescription = "Toggle Mute",
+                            tint = if (masterVolume > 0f) MaterialTheme.colors.primary else Color.Red
+                        )
+                    }
+                    
+                    Slider(
+                        value = masterVolume,
+                        onValueChange = { onMasterVolumeChange(it) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colors.primary,
+                            activeTrackColor = MaterialTheme.colors.primary
+                        )
+                    )
+                    
+                    Text(
+                        text = "${(masterVolume * 100).toInt()}%",
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.width(48.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
             }
         }
         
-        Spacer(modifier = Modifier.height(8.dp))
+        // Lista de usuários
+        Text(
+            text = "Canais",
+            style = MaterialTheme.typography.h6,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
         
-        // Configurações Adicionais
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            backgroundColor = Color(0xFF2A2A2A),
-            shape = RoundedCornerShape(8.dp)
+        LazyColumn(
+            modifier = Modifier.weight(1f)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Configurações de Entrada",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
+            items(users.sortedWith(compareBy { it.id != localUserId })) { user ->
+                val isLocal = user.id == localUserId
+                val userVolume = userVolumes[user.id] ?: 1f
                 
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    elevation = 2.dp,
+                    backgroundColor = if (isLocal) MaterialTheme.colors.primary.copy(alpha = 0.1f) else MaterialTheme.colors.surface
                 ) {
-                    Text(
-                        text = "Interface de Áudio:",
-                        color = Color.White,
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    // Dropdown simulado
-                    OutlinedButton(
-                        onClick = { /* Abrir seleção de interface */ },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            backgroundColor = Color(0xFF333333),
-                            contentColor = Color.White
-                        )
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Text("Padrão do Sistema")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Avatar do usuário
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isLocal) MaterialTheme.colors.primary else MaterialTheme.colors.secondary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = user.name.first().toString().uppercase(),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(12.dp))
+                            
+                            // Detalhes do usuário
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = user.name + (if (isLocal) " (Você)" else ""),
+                                    style = MaterialTheme.typography.subtitle1,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                
+                                Text(
+                                    text = user.instrument,
+                                    style = MaterialTheme.typography.caption,
+                                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            
+                            // Indicador de qualidade
+                            ConnectionQualityIndicator(
+                                userId = user.id,
+                                size = ConnectionIndicatorSize.SMALL
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Controles específicos baseados no tipo de usuário
+                        if (isLocal) {
+                            // Para o usuário local, mostrar controle de microfone
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Button(
+                                    onClick = onToggleAudio,
+                                    colors = ButtonDefaults.buttonColors(
+                                        backgroundColor = if (audioEnabled) MaterialTheme.colors.primary else Color.Red
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = if (audioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
+                                        contentDescription = "Toggle Microphone",
+                                        tint = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (audioEnabled) "Microfone Ativo" else "Microfone Desativado",
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        } else {
+                            // Para outros usuários, mostrar controle de volume
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { onVolumeChange(user.id, if (userVolume > 0f) 0f else 1f) }
+                                ) {
+                                    Icon(
+                                        imageVector = if (userVolume > 0f) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
+                                        contentDescription = "Toggle Mute",
+                                        tint = if (userVolume > 0f) MaterialTheme.colors.primary else Color.Red
+                                    )
+                                }
+                                
+                                Slider(
+                                    value = userVolume,
+                                    onValueChange = { onVolumeChange(user.id, it) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 8.dp),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = MaterialTheme.colors.primary,
+                                        activeTrackColor = MaterialTheme.colors.primary
+                                    )
+                                )
+                                
+                                Text(
+                                    text = "${(userVolume * 100).toInt()}%",
+                                    style = MaterialTheme.typography.body2,
+                                    modifier = Modifier.width(48.dp),
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -171,6 +330,11 @@ fun BasicMixerTab(
 
 @Composable
 fun EqualizerTab() {
+    // Lista de bandas de equalização simuladas
+    val bands = listOf(
+        "60Hz", "150Hz", "400Hz", "1kHz", "2.5kHz", "6kHz", "12kHz"
+    )
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -178,261 +342,255 @@ fun EqualizerTab() {
     ) {
         Text(
             text = "Equalizador",
+            style = MaterialTheme.typography.h6,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // Controles de Equalizador
-        EqualizerControl(name = "Graves", value = 0.7f)
-        EqualizerControl(name = "Médios", value = 0.5f)
-        EqualizerControl(name = "Agudos", value = 0.6f)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = 4.dp,
+            backgroundColor = MaterialTheme.colors.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                bands.forEach { band ->
+                    var value by remember { mutableStateOf(0f) }
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = band,
+                            style = MaterialTheme.typography.body2,
+                            modifier = Modifier.width(50.dp)
+                        )
+                        
+                        Slider(
+                            value = value,
+                            onValueChange = { value = it },
+                            valueRange = -12f..12f,
+                            steps = 24,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 8.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colors.primary,
+                                activeTrackColor = MaterialTheme.colors.primary
+                            )
+                        )
+                        
+                        Text(
+                            text = if (value > 0) "+${value.toInt()} dB" else "${value.toInt()} dB",
+                            style = MaterialTheme.typography.body2,
+                            modifier = Modifier.width(56.dp),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { /* Redefinir equalização */ },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = MaterialTheme.colors.primary.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Reset",
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Redefinir", color = Color.White)
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    Button(
+                        onClick = { /* Aplicar equalização */ },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = MaterialTheme.colors.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Apply",
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Aplicar", color = Color.White)
+                    }
+                }
+            }
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // Presets
         Text(
-            text = "Presets",
+            text = "Predefinições",
+            style = MaterialTheme.typography.subtitle1,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             PresetButton(name = "Flat")
+            PresetButton(name = "Vocal")
+            PresetButton(name = "Bass Boost")
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             PresetButton(name = "Rock")
             PresetButton(name = "Jazz")
-            PresetButton(name = "Pop")
+            PresetButton(name = "Dance")
         }
     }
 }
 
 @Composable
-fun SpatialTab() {
+fun StatisticsTab() {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
         Text(
-            text = "Configurações Espaciais",
+            text = "Estatísticas",
+            style = MaterialTheme.typography.h6,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // Controles espaciais
-        EqualizerControl(name = "Reverberação", value = 0.3f)
-        EqualizerControl(name = "Eco", value = 0.2f)
-        EqualizerControl(name = "Delay", value = 0.1f)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            elevation = 4.dp,
+            backgroundColor = MaterialTheme.colors.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Rede",
+                    style = MaterialTheme.typography.subtitle1,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatItem(title = "Latência", value = "45 ms", modifier = Modifier.weight(1f))
+                    StatItem(title = "Jitter", value = "3.2 ms", modifier = Modifier.weight(1f))
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatItem(title = "Pacotes Perdidos", value = "0.2%", modifier = Modifier.weight(1f))
+                    StatItem(title = "Largura de Banda", value = "96 kbps", modifier = Modifier.weight(1f))
+                }
+            }
+        }
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = 4.dp,
+            backgroundColor = MaterialTheme.colors.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Áudio",
+                    style = MaterialTheme.typography.subtitle1,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatItem(title = "Taxa de Amostragem", value = "48 kHz", modifier = Modifier.weight(1f))
+                    StatItem(title = "Tamanho do Buffer", value = "256 amostras", modifier = Modifier.weight(1f))
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatItem(title = "Latência de Áudio", value = "13.4 ms", modifier = Modifier.weight(1f))
+                    StatItem(title = "Codec", value = "Opus", modifier = Modifier.weight(1f))
+                }
+            }
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // Configurações adicionais
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            backgroundColor = Color(0xFF2A2A2A),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Ambiente Virtual",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Tipo:",
-                        color = Color.White,
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    // Dropdown simulado
-                    OutlinedButton(
-                        onClick = { /* Abrir seleção de ambiente */ },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            backgroundColor = Color(0xFF333333),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Sala de Ensaio")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ParticipantMixerCard(
-    participant: Participant,
-    onVolumeChange: (Float) -> Unit
-) {
-    var volume by remember { mutableStateOf(0.8f) }
-    
-    Card(
-        modifier = Modifier
-            .padding(4.dp)
-            .fillMaxWidth(),
-        backgroundColor = Color(0xFF2A2A2A),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            // Nome do Participante
-            Text(
-                text = participant.name,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            // Instrumento
-            Text(
-                text = participant.instrument ?: "Instrumento desconhecido",
-                color = Color.LightGray,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Slider de Volume
-            Slider(
-                value = volume,
-                onValueChange = { 
-                    volume = it
-                    onVolumeChange(it)
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF2196F3),
-                    activeTrackColor = Color(0xFF2196F3),
-                    inactiveTrackColor = Color(0xFF555555)
-                )
-            )
-            
-            // Valor do volume
-            Text(
-                text = "${(volume * 100).toInt()}%",
-                color = Color.White,
-                fontSize = 12.sp
-            )
-            
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            // Botões de mutação e solo
-            Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                IconButton(
-                    onClick = { /* Toggle mute */ },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.VolumeOff,
-                        contentDescription = "Mute",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                
-                IconButton(
-                    onClick = { /* Toggle solo */ },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.RecordVoiceOver,
-                        contentDescription = "Solo",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                
-                IconButton(
-                    onClick = { /* Open settings */ },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Configurações",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun EqualizerControl(
-    name: String,
-    value: Float
-) {
-    var sliderValue by remember { mutableStateOf(value) }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+        Text(
+            text = "Estatísticas em tempo real",
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = name,
-                color = Color.White
-            )
-            
-            Text(
-                text = "${(sliderValue * 100).toInt()}%",
-                color = Color.White,
-                fontSize = 12.sp
-            )
-        }
+        )
+    }
+}
+
+@Composable
+fun StatItem(title: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+        )
         
-        Slider(
-            value = sliderValue,
-            onValueChange = { sliderValue = it },
-            colors = SliderDefaults.colors(
-                thumbColor = Color(0xFF2196F3),
-                activeTrackColor = Color(0xFF2196F3),
-                inactiveTrackColor = Color(0xFF555555)
-            )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.body1,
+            fontWeight = FontWeight.Medium
         )
     }
 }
 
 @Composable
 fun PresetButton(name: String) {
-    OutlinedButton(
+    Button(
         onClick = { /* Aplicar preset */ },
-        colors = ButtonDefaults.outlinedButtonColors(
-            backgroundColor = Color(0xFF333333),
-            contentColor = Color.White
+        colors = ButtonDefaults.buttonColors(
+            backgroundColor = MaterialTheme.colors.surface,
+            contentColor = MaterialTheme.colors.primary
         ),
-        modifier = Modifier.padding(horizontal = 4.dp)
+        elevation = ButtonDefaults.elevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 4.dp
+        ),
+        shape = RoundedCornerShape(4.dp),
+        modifier = Modifier.width(100.dp)
     ) {
         Text(name, fontSize = 12.sp)
     }

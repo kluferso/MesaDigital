@@ -11,11 +11,12 @@ import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.view.WindowCompat
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
 import com.mesadigital.service.AudioConnectionService
@@ -23,6 +24,9 @@ import com.mesadigital.ui.room.RoomScreen
 import com.mesadigital.ui.login.LoginScreen
 import com.mesadigital.ui.theme.MesaDigitalTheme
 
+/**
+ * Atividade principal do Mesa Digital para Android
+ */
 class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,7 +42,10 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    MesaDigitalApp()
+                    MesaDigitalApp(
+                        fromNotification = intent?.getBooleanExtra("FROM_NOTIFICATION", false) ?: false,
+                        roomIdFromNotification = intent?.getStringExtra("ROOM_ID")
+                    )
                 }
             }
         }
@@ -46,14 +53,17 @@ class MainActivity : ComponentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        // Desconectar socket ao sair
+        // Desconectar e parar o serviço ao sair
         stopService(Intent(this, AudioConnectionService::class.java))
     }
 }
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun MesaDigitalApp() {
+fun MesaDigitalApp(
+    fromNotification: Boolean = false,
+    roomIdFromNotification: String? = null
+) {
     val navController = rememberNavController()
     val micPermissionState = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
     
@@ -67,8 +77,8 @@ fun MesaDigitalApp() {
     NavHost(navController = navController, startDestination = "login") {
         composable("login") {
             LoginScreen(
-                onNavigateToRoom = { roomId, userName ->
-                    navController.navigate("room/$roomId/$userName") {
+                onNavigateToRoom = { roomId, userName, instrument ->
+                    navController.navigate("room/$roomId/$userName/$instrument") {
                         // Limpa o backstack para que o usuário não volte à tela de login
                         // ao pressionar o botão de voltar na sala
                         popUpTo("login") { inclusive = true }
@@ -77,9 +87,17 @@ fun MesaDigitalApp() {
             )
         }
         
-        composable("room/{roomId}/{userName}") { backStackEntry ->
+        composable(
+            "room/{roomId}/{userName}/{instrument}",
+            arguments = listOf(
+                navArgument("roomId") { type = NavType.StringType },
+                navArgument("userName") { type = NavType.StringType },
+                navArgument("instrument") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
             val roomId = backStackEntry.arguments?.getString("roomId") ?: ""
             val userName = backStackEntry.arguments?.getString("userName") ?: ""
+            val instrument = backStackEntry.arguments?.getString("instrument") ?: "Vocal"
             
             RoomScreen(
                 roomId = roomId,
@@ -92,12 +110,15 @@ fun MesaDigitalApp() {
             )
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun LoginScreenPreview() {
-    MesaDigitalTheme {
-        LoginScreen(onNavigateToRoom = { _, _ -> })
+    
+    // Navegar diretamente para a sala se veio da notificação
+    LaunchedEffect(key1 = fromNotification) {
+        if (fromNotification && !roomIdFromNotification.isNullOrEmpty()) {
+            // Quando vem da notificação, vamos direto para a sala
+            // usando parâmetros padrão (isso serve apenas para retornar à sala ativa)
+            navController.navigate("room/$roomIdFromNotification/Usuário/Vocal") {
+                popUpTo("login") { inclusive = true }
+            }
+        }
     }
 }

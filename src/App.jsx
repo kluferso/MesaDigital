@@ -5,9 +5,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import i18n from './i18n';
 import theme from './theme';
-import LoginScreen from './components/LoginScreen';
-import RoomScreen from './components/RoomScreen';
+import EnhancedLoginScreen from './components/EnhancedLoginScreen';
+import EnhancedStudioRoom from './components/studio/EnhancedStudioRoom';
 import { SocketProvider } from './contexts/SocketContext';
+import { WebRTCProvider } from './contexts/webrtc/WebRTCContext';
 
 function App() {
   return (
@@ -15,13 +16,15 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <SocketProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<LoginScreen />} />
-              <Route path="/room/:roomId" element={<RoomScreen />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
+          <WebRTCProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<EnhancedLoginScreen />} />
+                <Route path="/room/:roomId" element={<EnhancedStudioRoom />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </WebRTCProvider>
         </SocketProvider>
       </ThemeProvider>
     </I18nextProvider>

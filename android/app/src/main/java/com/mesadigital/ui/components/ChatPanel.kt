@@ -19,25 +19,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.mesadigital.R
+import androidx.compose.ui.unit.sp
 import com.mesadigital.model.ChatMessage
-import com.mesadigital.model.Participant
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Painel de chat para a sala
+ * Painel de chat para a sala com design moderno
  */
 @Composable
 fun ChatPanel(
     messages: List<ChatMessage>,
-    participants: List<Participant>,
     onSendMessage: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
@@ -54,138 +51,156 @@ fun ChatPanel(
         }
     }
     
-    Card(
-        modifier = modifier,
-        elevation = 8.dp,
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colors.background.copy(alpha = 0.95f))
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
+        Card(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(0.85f)
+                .align(Alignment.CenterEnd),
+            elevation = 8.dp,
+            shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)
         ) {
-            // Cabeçalho
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colors.primary)
-                    .padding(8.dp)
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text(
-                    text = stringResource(R.string.chat_title),
-                    style = MaterialTheme.typography.subtitle1,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center)
+                // Cabeçalho
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "Chat",
+                            style = MaterialTheme.typography.h6,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onClose) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Fechar chat"
+                            )
+                        }
+                    },
+                    backgroundColor = MaterialTheme.colors.primary,
+                    elevation = 4.dp
                 )
                 
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close chat",
-                        tint = Color.White
-                    )
-                }
-            }
-            
-            // Lista de mensagens
-            if (messages.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.empty_chat),
-                        style = MaterialTheme.typography.body1,
-                        color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    state = scrollState,
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    items(messages) { message ->
-                        MessageItem(
-                            message = message,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
+                // Lista de mensagens
+                if (messages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Nenhuma mensagem ainda",
+                                style = MaterialTheme.typography.body1,
+                                fontWeight = FontWeight.Medium
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Text(
+                                text = "Envie a primeira mensagem para a sala",
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        state = scrollState,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(messages) { message ->
+                            MessageItem(
+                                message = message
+                            )
+                        }
                     }
                 }
-            }
-            
-            // Campo de entrada de mensagem
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colors.surface)
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Campo de texto
-                OutlinedTextField(
-                    value = messageText,
-                    onValueChange = { messageText = it },
-                    placeholder = { Text(stringResource(R.string.message_hint)) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        backgroundColor = MaterialTheme.colors.surface
-                    ),
-                    keyboardOptions = KeyboardOptions.Default.copy(
-                        imeAction = ImeAction.Send
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
+                
+                // Campo de entrada de mensagem
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colors.surface)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Campo de texto
+                    TextField(
+                        value = messageText,
+                        onValueChange = { messageText = it },
+                        placeholder = { Text("Digite sua mensagem...") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(24.dp)),
+                        singleLine = true,
+                        colors = TextFieldDefaults.textFieldColors(
+                            backgroundColor = MaterialTheme.colors.background,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            imeAction = ImeAction.Send
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                if (messageText.isNotBlank()) {
+                                    onSendMessage(messageText)
+                                    messageText = ""
+                                    focusManager.clearFocus()
+                                }
+                            }
+                        )
+                    )
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    // Botão de enviar
+                    IconButton(
+                        onClick = {
                             if (messageText.isNotBlank()) {
                                 onSendMessage(messageText)
                                 messageText = ""
                                 focusManager.clearFocus()
+                                
+                                // Rolar para a última mensagem
+                                coroutineScope.launch {
+                                    scrollState.animateScrollToItem(messages.size)
+                                }
                             }
-                        }
-                    )
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // Botão de enviar
-                IconButton(
-                    onClick = {
-                        if (messageText.isNotBlank()) {
-                            onSendMessage(messageText)
-                            messageText = ""
-                            focusManager.clearFocus()
-                            
-                            // Rolar para a última mensagem
-                            coroutineScope.launch {
-                                scrollState.animateScrollToItem(messages.size)
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (messageText.isBlank()) MaterialTheme.colors.primary.copy(alpha = 0.5f) 
-                            else MaterialTheme.colors.primary
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (messageText.isBlank()) 
+                                    MaterialTheme.colors.primary.copy(alpha = 0.5f) 
+                                else 
+                                    MaterialTheme.colors.primary
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Enviar",
+                            tint = Color.White
                         )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Send,
-                        contentDescription = "Send",
-                        tint = Color.White
-                    )
+                    }
                 }
             }
         }
@@ -233,7 +248,7 @@ fun MessageItem(
             )
         ) {
             Column(
-                modifier = Modifier.padding(8.dp)
+                modifier = Modifier.padding(12.dp)
             ) {
                 Text(
                     text = message.text,
