@@ -5,6 +5,9 @@ import logging
 import json
 import time
 import uuid
+import hmac
+import hashlib
+import subprocess
 
 # Configurar logging
 logging.basicConfig(
@@ -29,6 +32,60 @@ user_room_map = {}
 def serve_frontend():
     """Servir a aplicação React."""
     return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/webhook/github', methods=['POST'])
+def github_webhook():
+    """Endpoint para webhook do GitHub que dispara a atualização automática"""
+    # Verificar Secret (se configurado)
+    secret = os.environ.get('GITHUB_WEBHOOK_SECRET', '')
+    if secret:
+        signature = request.headers.get('X-Hub-Signature-256', '')
+        if not signature:
+            logging.warning("Webhook sem assinatura recebido")
+            return jsonify({"status": "error", "message": "Assinatura não fornecida"}), 403
+        
+        # Computar assinatura
+        payload = request.get_data()
+        computed_signature = 'sha256=' + hmac.new(
+            secret.encode(), 
+            payload, 
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Verificar assinatura
+        if not hmac.compare_digest(signature, computed_signature):
+            logging.warning("Assinatura de webhook inválida")
+            return jsonify({"status": "error", "message": "Assinatura inválida"}), 403
+    
+    # Verificar evento
+    event = request.headers.get('X-GitHub-Event', '')
+    if event != 'push':
+        return jsonify({"status": "ignored", "message": f"Evento {event} ignorado"}), 200
+    
+    # Obter dados do payload
+    payload = request.json
+    ref = payload.get('ref', '')
+    
+    # Verificar se é um push para a branch principal
+    if ref != 'refs/heads/main':
+        return jsonify({"status": "ignored", "message": f"Push para {ref} ignorado"}), 200
+    
+    # Iniciar processo de atualização em segundo plano
+    try:
+        # Executar o script em processo separado para não bloquear
+        update_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'update_from_github.py')
+        subprocess.Popen(['python', update_script])
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Atualização iniciada em segundo plano"
+        }), 200
+    except Exception as e:
+        logging.error(f"Erro ao iniciar atualização: {str(e)}")
+        return jsonify({
+            "status": "error", 
+            "message": f"Erro ao iniciar atualização: {str(e)}"
+        }), 500
 
 @app.route('/<path:path>')
 def static_proxy(path):
