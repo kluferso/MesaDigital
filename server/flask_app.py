@@ -8,34 +8,101 @@ import uuid
 import hmac
 import hashlib
 import subprocess
+import sys
 
 # Configurar logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='/tmp/mesa_digital_app.log',
+    filemode='a'
 )
 
+# Log de inicialização
+logging.info("Inicializando aplicação Flask do Mesa Digital")
+
+# Detectar ambiente
+is_production = 'PYTHONANYWHERE_DOMAIN' in os.environ or 'pythonanywhere' in os.environ.get('HOSTNAME', '')
+if is_production:
+    logging.info("Rodando em ambiente de produção (PythonAnywhere)")
+else:
+    logging.info("Rodando em ambiente de desenvolvimento local")
+
+# Caminho para a pasta do projeto
+project_dir = os.environ.get('PROJECT_DIR', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+logging.info(f"Diretório do projeto: {project_dir}")
+
+# Verificar pasta build
+static_folder = os.path.join(project_dir, 'build')
+if not os.path.exists(static_folder):
+    logging.warning(f"AVISO: Pasta build não encontrada em: {static_folder}")
+    # Em produção, pode ser necessário criar a pasta build manualmente
+    if is_production:
+        os.makedirs(static_folder, exist_ok=True)
+        logging.info(f"Pasta build criada em: {static_folder}")
+        
+        # Criar index.html básico para debug
+        index_path = os.path.join(static_folder, 'index.html')
+        if not os.path.exists(index_path):
+            with open(index_path, 'w') as f:
+                f.write("""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Mesa Digital - Carregando...</title>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 2s linear infinite; margin: 20px auto; }
+                        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                    </style>
+                </head>
+                <body>
+                    <h1>Mesa Digital</h1>
+                    <p>Aplicação em inicialização ou reconstrução...</p>
+                    <div class="loader"></div>
+                    <p>Atualize a página em alguns minutos.</p>
+                </body>
+                </html>
+                """)
+            logging.info("Criado index.html temporário para debug")
+
 # Inicializar aplicação Flask
-app = Flask(__name__, static_folder='../build', static_url_path='')
-app.config['SECRET_KEY'] = 'mesa_digital_secret_key'
-
-# Configurar Socket.IO
-socketio = SocketIO(app, cors_allowed_origins="*")
-
-# Armazenamento em memória para as salas (em produção, use um banco de dados)
-rooms = {}
-user_room_map = {}
+try:
+    app = Flask(__name__, static_folder=static_folder, static_url_path='')
+    app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'mesa_digital_secret_key')
+    
+    # Configurar Socket.IO com opções corretas para PythonAnywhere
+    socketio = SocketIO(
+        app, 
+        cors_allowed_origins="*",
+        async_mode='threading'  # Usar threading em vez de eventlet/gevent no PythonAnywhere
+    )
+    
+    # Armazenamento em memória para as salas (em produção, use um banco de dados)
+    rooms = {}
+    user_room_map = {}
+    
+    logging.info("Flask e Socket.IO inicializados com sucesso")
+except Exception as e:
+    logging.error(f"Erro ao inicializar Flask/SocketIO: {str(e)}")
+    logging.exception(e)
+    raise
 
 # ----- Rotas da API -----
 
 @app.route('/')
 def serve_frontend():
     """Servir a aplicação React."""
+    logging.info("Requisição recebida para rota principal '/'")
     return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/webhook/github', methods=['POST'])
 def github_webhook():
     """Endpoint para webhook do GitHub que dispara a atualização automática"""
+    logging.info("Webhook recebido na rota /webhook/github")
+    
     # Verificar Secret (se configurado)
     secret = os.environ.get('GITHUB_WEBHOOK_SECRET', '')
     if secret:
@@ -74,7 +141,11 @@ def github_webhook():
     try:
         # Executar o script em processo separado para não bloquear
         update_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'update_from_github.py')
-        subprocess.Popen(['python', update_script])
+        logging.info(f"Iniciando script de atualização: {update_script}")
+        
+        # Usar Python do ambiente atual
+        python_exec = sys.executable
+        subprocess.Popen([python_exec, update_script])
         
         return jsonify({
             "status": "success", 
@@ -82,6 +153,7 @@ def github_webhook():
         }), 200
     except Exception as e:
         logging.error(f"Erro ao iniciar atualização: {str(e)}")
+        logging.exception(e)
         return jsonify({
             "status": "error", 
             "message": f"Erro ao iniciar atualização: {str(e)}"
@@ -93,6 +165,16 @@ def github_webhook_compat():
     logging.info("Webhook recebido na rota de compatibilidade /git-webhook")
     return github_webhook()
 
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Endpoint para verificar se a aplicação está funcionando"""
+    return jsonify({
+        "status": "ok",
+        "message": "Mesa Digital API está operacional",
+        "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
+        "environment": "production" if is_production else "development"
+    })
+
 @app.route('/<path:path>')
 def static_proxy(path):
     """Servir arquivos estáticos da aplicação React."""
@@ -100,6 +182,7 @@ def static_proxy(path):
     if os.path.isfile(file_path):
         return send_from_directory(app.static_folder, path)
     else:
+        # Para aplicativos de página única, retornar index.html para todas as rotas não encontradas
         return send_from_directory(app.static_folder, 'index.html')
 
 # ----- Socket.IO Event Handlers -----
