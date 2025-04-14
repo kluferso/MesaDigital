@@ -118,7 +118,7 @@ class WebRTCManager {
         console.log('Usando áudio simulado (modo somente audição)');
         
         // Disparar evento de aviso
-        this._triggerCallback('onWarning', {
+        this.triggerCallback('onWarning', {
           type: 'microphone_unavailable',
           message: 'Usando áudio simulado (modo somente audição). Seu microfone não está disponível.'
         });
@@ -138,7 +138,7 @@ class WebRTCManager {
       this._startConnectionQualityMonitoring();
 
       this.initialized = true;
-      this._triggerCallback('onInitialized', { 
+      this.triggerCallback('onInitialized', { 
         success: true,
         stream: this.localStream
       });
@@ -154,7 +154,7 @@ class WebRTCManager {
       // Tentar inicializar mesmo com erro
       this.initialized = true;
       
-      this._triggerCallback('onInitialized', { 
+      this.triggerCallback('onInitialized', { 
         success: false,
         error,
         stream: this.localStream
