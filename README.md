@@ -142,6 +142,29 @@ This will start both the backend server (port 5000) and the frontend development
    - Click the green "Reload" button
    - Your app should now be available at: http://$USERNAME.pythonanywhere.com
 
+## Automated Deployment with GitHub Actions
+
+MesaDigital now supports automated deployments to PythonAnywhere using GitHub Actions:
+
+1. Configure GitHub Secrets:
+   - Go to your GitHub repository Settings > Secrets and Variables > Actions
+   - Add the following secrets:
+     - `PYTHONANYWHERE_API_TOKEN`: Your PythonAnywhere API token
+     - `PYTHONANYWHERE_USERNAME`: Your PythonAnywhere username
+
+2. Push to main branch:
+   - Any push to the main branch will automatically trigger a deployment
+   - The GitHub Action will:
+     - Pull the latest code from GitHub
+     - Install any new dependencies
+     - Reload the PythonAnywhere web app
+
+3. Monitor deployments:
+   - Check deployment status in the Actions tab of your GitHub repository
+   - Detailed logs are available for each deployment run
+
+This automated deployment ensures your MesaDigital application is always up-to-date with the latest features and improvements.
+
 ## Troubleshooting PythonAnywhere Deployment
 
 1. Check the error logs:
