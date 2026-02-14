@@ -1,0 +1,9 @@
+{
+  "short_name": "MesaDigital",
+  "name": "MesaDigital - Real-time Music Collaboration",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}

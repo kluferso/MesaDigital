@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MesaDigital</string>
+    <string name="login_title">Mesa Digital</string>
+    <string name="login_subtitle">Colaboração de áudio em tempo real</string>
+    <string name="name_hint">Seu nome</string>
+    <string name="room_id_hint">ID da Sala</string>
+    <string name="create_room">Criar Sala</string>
+    <string name="join_room">Entrar na Sala</string>
+    <string name="error_empty_name">Por favor, informe seu nome</string>
+    <string name="error_empty_room">Por favor, informe o ID da sala</string>
+    <string name="error_connection">Erro de conexão. Verifique sua internet.</string>
+    <string name="permission_required">Permissão de Microfone</string>
+    <string name="permission_message">Mesa Digital precisa de acesso ao microfone para o WebRTC funcionar corretamente.</string>
+    <string name="allow">Permitir</string>
+    <string name="cancel">Cancelar</string>
+    <string name="leave_room">Sair</string>
+    <string name="retry">Tentar Novamente</string>
+    <string name="connecting">Conectando...</string>
+    <string name="audio_mixer">Mixer de Áudio</string>
+    <string name="instrument_vocal">Vocal</string>
+    <string name="instrument_guitar">Guitarra</string>
+    <string name="instrument_bass">Baixo</string>
+    <string name="instrument_drums">Bateria</string>
+    <string name="instrument_keyboard">Teclado</string>
+    <string name="instrument_other">Outro</string>
+    <string name="select_instrument">Selecione seu instrumento</string>
+</resources>

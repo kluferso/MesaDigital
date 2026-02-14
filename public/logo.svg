@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="150" height="150" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M75 15 C 45 15, 20 40, 20 70 C 20 100, 45 125, 75 125 C 105 125, 130 100, 130 70 C 130 40, 105 15, 75 15 Z" fill="white"/>
+  <path d="M75 30 C 85 50, 95 60, 95 80 C 95 90, 85 105, 75 105 C 65 105, 55 90, 55 80 C 55 60, 65 50, 75 30 Z" fill="#FF3333"/>
+</svg>

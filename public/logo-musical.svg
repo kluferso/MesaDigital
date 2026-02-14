@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fundo circular gradiente -->
+  <circle cx="100" cy="100" r="95" fill="url(#paint0_linear)"/>
+  <circle cx="100" cy="100" r="95" stroke="#FFFFFF" stroke-width="2"/>
+  
+  <!-- Elemento gráfico de onda sonora -->
+  <path d="M40 100C40 100 55 70 75 70C95 70 105 130 125 130C145 130 160 100 160 100" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Elementos musicais -->
+  <path d="M65 95V60C65 60 85 55 85 70V105" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="55" cy="95" r="10" fill="white"/>
+  <circle cx="75" cy="105" r="10" fill="white"/>
+  
+  <!-- Nota musical decorativa -->
+  <path d="M135 85V50C135 50 155 45 155 60V95" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="125" cy="85" r="10" fill="white"/>
+  <circle cx="145" cy="95" r="10" fill="white"/>
+  
+  <!-- Texto "MESA DIGITAL" na parte inferior -->
+  <path d="M43 140H47.616L53.2 155.608H53.368L58.952 140H63.568V160H60.152V144.84H60.016L54.8 159.96H51.768L46.552 144.84H46.416V160H43V140Z" fill="white"/>
+  <path d="M67.4703 140H78.3063V143.08H70.8863V148.152H77.6583V151.232H70.8863V156.92H78.3063V160H67.4703V140Z" fill="white"/>
+  <path d="M83.909 140H90.325C91.965 140 93.341 140.28 94.453 140.84C95.581 141.4 96.421 142.216 96.973 143.288C97.525 144.344 97.801 145.616 97.801 147.104C97.801 148.592 97.525 149.864 96.973 150.92C96.421 151.976 95.581 152.792 94.453 153.368C93.341 153.928 91.965 154.208 90.325 154.208H87.325V160H83.909V140ZM90.133 151.128C91.565 151.128 92.613 150.776 93.277 150.072C93.957 149.368 94.297 148.384 94.297 147.104C94.297 145.824 93.957 144.832 93.277 144.128C92.613 143.424 91.565 143.072 90.133 143.072H87.325V151.128H90.133Z" fill="white"/>
+  <path d="M109.294 140H114.538L120.962 160H117.402L116.146 155.464H107.686L106.43 160H102.87L109.294 140ZM115.146 152.384L111.95 142.824H111.882L108.686 152.384H115.146Z" fill="white"/>
+  <path d="M137.005 160H133.253L126.157 146.024H126.089V160H122.673V140H126.425L133.521 153.976H133.589V140H137.005V160Z" fill="white"/>
+  <path d="M141.337 140H144.753V156.92H151.913V160H141.337V140Z" fill="white"/>
+  <path d="M166.34 160H162.588L155.492 146.024H155.424V160H152.008V140H155.76L162.856 153.976H162.924V140H166.34V160Z" fill="white"/>
+  
+  <!-- Definição do gradiente -->
+  <defs>
+    <linearGradient id="paint0_linear" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2C5364"/>
+      <stop offset="0.5" stop-color="#203A43"/>
+      <stop offset="1" stop-color="#0F2027"/>
+    </linearGradient>
+  </defs>
+</svg>
