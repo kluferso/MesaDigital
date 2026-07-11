@@ -1,0 +1,105 @@
+# Guia de Deploy no Render.com - 100% Gratuito
+
+## Pré-requisitos
+- Conta no GitHub com o projeto MesaDigital
+- Conta no Render.com (grátis em https://render.com)
+
+## Passo a Passo (5 minutos)
+
+### 1. Preparar o Repositório GitHub
+```bash
+# No seu terminal local
+cd c:\MesaDigital
+git add render.yaml
+git commit -m "Adiciona configuração Render"
+git push
+```
+
+### 2. Criar Conta no Render
+1. Acesse https://render.com
+2. Clique em "Sign Up"
+3. Faça login com GitHub (recomendado)
+
+### 3. Conectar Repositório
+1. No dashboard do Render, clique em "New +"
+2. Selecione "Web Service"
+3. Clique em "Connect GitHub"
+4. Autorize o Render a acessar seu GitHub
+5. Selecione o repositório `kluferso/MesaDigital`
+
+### 4. Configurar o Deploy
+Render detectará automaticamente o arquivo `render.yaml`:
+
+**Configurações automáticas:**
+- **Name**: mesa-digital
+- **Region**: São Paulo (escolha a mais próxima do Brasil)
+- **Branch**: main
+- **Plan**: Free
+- **Build Command**: npm install && npm run build
+- **Start Command**: node server/index.js
+
+**Variáveis de ambiente (Render adiciona automaticamente):**
+- PORT: 5000
+- NODE_ENV: production
+
+### 5. Deploy
+1. Clique em "Create Web Service"
+2. Aguarde o build (2-3 minutos)
+3. O Render fornecerá uma URL como: `https://mesa-digital.onrender.com`
+
+## Limitações do Plano Gratuito
+- **Sleep**: Aplicações "dormem" após 15min inatividade
+- **Wake-up**: Primeiro acesso após sleep leva ~30 segundos
+- **RAM**: 512MB
+- **CPU**: Compartilhado
+- **Bandwidth**: 100GB/mês
+
+**Para ensaio com 5 pessoas**: Funciona perfeitamente! Basta alguém acessar o site 5min antes do ensaio para "acordar" o servidor.
+
+## Deploy Automático
+Toda vez que você fizer `git push` para a branch `main`, o Render fará deploy automático.
+
+## Acessar a Aplicação
+Após o deploy, acesse: `https://mesa-digital.onrender.com`
+
+## Troubleshooting
+
+### Erro: "Application failed to start"
+- Verifique os logs em "Logs" no dashboard do Render
+- Certifique-se que o `package.json` tem o script `start`
+
+### Erro: "Port already in use"
+- O Render define automaticamente a porta via variável de ambiente
+- O código já está configurado para usar `process.env.PORT || 5000`
+
+### Aplicação não "acorda"
+- Acesse a URL diretamente no navegador
+- Aguarde até 30 segundos para o primeiro carregamento
+
+### Upload de arquivos não funciona
+- No plano gratuito, arquivos são perdidos ao reiniciar
+- Para persistência, considere upgrade para plano pago ou usar serviço externo (AWS S3, Cloudinary)
+
+## Dicas para Melhor Performance
+
+### 1. Manter Servidor Ativo
+Antes do ensaio, alguém deve acessar o site 5 minutos antes.
+
+### 2. Monitorar Logs
+No dashboard do Render, acesse "Logs" para ver erros em tempo real.
+
+### 3. Variáveis de Ambiente Adicionais
+Se precisar adicionar mais variáveis:
+1. No dashboard do serviço
+2. Vá em "Environment"
+3. Adicione novas variáveis
+
+## URL Personalizada (Opcional)
+Para usar domínio próprio:
+1. No dashboard, vá em "Domains"
+2. Adicione seu domínio
+3. Configure DNS conforme instruções do Render
+
+## Suporte
+- Documentação: https://render.com/docs
+- Status: https://status.render.com
