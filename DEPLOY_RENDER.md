@@ -18,17 +18,17 @@
 4. Autorize o Render a acessar seu GitHub
 5. Selecione o repositório `kluferso/MesaDigital`
 
-### 3. Configurar o Deploy com Docker
-Render detectará automaticamente o Dockerfile multi-stage:
+### 3. Configurar o Deploy (Node.js Nativo)
+Render detectará automaticamente a configuração Node.js:
 
 **Configurações automáticas:**
 - **Name**: mesa-digital
 - **Region**: Oregon (ou São Paulo se disponível)
 - **Branch**: main
 - **Plan**: Free
-- **Runtime**: Docker
-- **Context**: /
-- **Dockerfile Path**: ./Dockerfile
+- **Runtime**: Node
+- **Build Command**: `npm install && npm run build`
+- **Start Command**: `npm start`
 
 **Variáveis de ambiente (adicione manualmente):**
 - PORT: 5000
@@ -36,14 +36,13 @@ Render detectará automaticamente o Dockerfile multi-stage:
 
 ### 4. Deploy
 1. Clique em "Create Web Service"
-2. Aguarde o build do Docker (5-10 minutos)
+2. Aguarde o build (3-5 minutos)
 3. O Render fornecerá uma URL como: `https://mesa-digital.onrender.com`
 
-**Nota sobre o Dockerfile:**
-O Dockerfile usa multi-stage build seguindo as melhores práticas do Render:
-- Stage 1: Build do React com npm ci --legacy-peer-deps
-- Stage 2: Runtime otimizado com apenas dependências de produção
-- Imagem menor e mais eficiente
+**Nota sobre a configuração:**
+- Arquivo `.nvmrc` especifica Node.js 18
+- Configuração nativa Node.js é mais estável que Docker
+- Render gerencia automaticamente o ambiente Node.js
 
 ## Limitações do Plano Gratuito
 - **Sleep**: Aplicações "dormem" após 15min inatividade
