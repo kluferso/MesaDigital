@@ -3,13 +3,10 @@ services:
     name: mesa-digital
     env: node
     plan: free
-    runtime: node
-    nodeVersion: 18
     buildCommand: npm install && npm run build
-    startCommand: node server/index.js
+    startCommand: npm start
     envVars:
       - key: PORT
         value: 5000
       - key: NODE_ENV
         value: production
-    healthCheckPath: /

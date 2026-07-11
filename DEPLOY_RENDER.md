@@ -30,6 +30,8 @@ Render detectará automaticamente a configuração Node.js:
 - **Build Command**: `npm install && npm run build`
 - **Start Command**: `npm start`
 
+**IMPORTANTE**: O Render NÃO executa npm install automaticamente. Você deve incluir `npm install` no Build Command.
+
 **Variáveis de ambiente (adicione manualmente):**
 - PORT: 5000
 - NODE_ENV: production
