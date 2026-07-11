@@ -6,45 +6,37 @@
 
 ## Passo a Passo (5 minutos)
 
-### 1. Preparar o Repositório GitHub
-```bash
-# No seu terminal local
-cd c:\MesaDigital
-git add render.yaml
-git commit -m "Adiciona configuração Render"
-git push
-```
-
-### 2. Criar Conta no Render
+### 1. Criar Conta no Render
 1. Acesse https://render.com
 2. Clique em "Sign Up"
 3. Faça login com GitHub (recomendado)
 
-### 3. Conectar Repositório
+### 2. Conectar Repositório
 1. No dashboard do Render, clique em "New +"
 2. Selecione "Web Service"
 3. Clique em "Connect GitHub"
 4. Autorize o Render a acessar seu GitHub
 5. Selecione o repositório `kluferso/MesaDigital`
 
-### 4. Configurar o Deploy
-Render detectará automaticamente o arquivo `render.yaml`:
+### 3. Configurar o Deploy
+Render detectará automaticamente a configuração do package.json:
 
-**Configurações automáticas:**
+**Configurações manuais:**
 - **Name**: mesa-digital
-- **Region**: São Paulo (escolha a mais próxima do Brasil)
+- **Region**: Oregon (ou São Paulo se disponível)
 - **Branch**: main
 - **Plan**: Free
-- **Build Command**: npm install && npm run build
-- **Start Command**: node server/index.js
+- **Runtime**: Node
+- **Build Command**: `npm install && npm run build`
+- **Start Command**: `npm start`
 
-**Variáveis de ambiente (Render adiciona automaticamente):**
+**Variáveis de ambiente (adicione manualmente):**
 - PORT: 5000
 - NODE_ENV: production
 
-### 5. Deploy
+### 4. Deploy
 1. Clique em "Create Web Service"
-2. Aguarde o build (2-3 minutos)
+2. Aguarde o build (3-5 minutos)
 3. O Render fornecerá uma URL como: `https://mesa-digital.onrender.com`
 
 ## Limitações do Plano Gratuito
