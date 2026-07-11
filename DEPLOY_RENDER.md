@@ -18,10 +18,10 @@
 4. Autorize o Render a acessar seu GitHub
 5. Selecione o repositório `kluferso/MesaDigital`
 
-### 3. Configurar o Deploy (Node.js Nativo)
-Render detectará automaticamente a configuração Node.js:
+### 3. Configurar o Deploy (Node.js Nativo - CONFIGURAÇÃO MANUAL)
+Render detectará automaticamente a configuração Node.js, mas você DEVE configurar manualmente:
 
-**Configurações automáticas:**
+**Configurações MANUAIS (obrigatório):**
 - **Name**: mesa-digital
 - **Region**: Oregon (ou São Paulo se disponível)
 - **Branch**: main
@@ -30,7 +30,7 @@ Render detectará automaticamente a configuração Node.js:
 - **Build Command**: `npm install && npm run build`
 - **Start Command**: `npm start`
 
-**IMPORTANTE**: O Render NÃO executa npm install automaticamente. Você deve incluir `npm install` no Build Command.
+**CRUCIAL**: O Render NÃO executa npm install automaticamente. Você DEVE configurar manualmente o Build Command como `npm install && npm run build`.
 
 **Variáveis de ambiente (adicione manualmente):**
 - PORT: 5000
@@ -42,9 +42,10 @@ Render detectará automaticamente a configuração Node.js:
 3. O Render fornecerá uma URL como: `https://mesa-digital.onrender.com`
 
 **Nota sobre a configuração:**
-- Arquivo `.nvmrc` especifica Node.js 18
+- Arquivo `.nvmrc` especifica Node.js 20 LTS (18 está EOL)
 - Configuração nativa Node.js é mais estável que Docker
 - Render gerencia automaticamente o ambiente Node.js
+- **IMPORTANTE**: Se já existe um serviço, DELETE e crie um NOVO para aplicar as configurações
 
 ## Limitações do Plano Gratuito
 - **Sleep**: Aplicações "dormem" após 15min inatividade
