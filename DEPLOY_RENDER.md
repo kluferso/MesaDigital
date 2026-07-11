@@ -19,7 +19,7 @@
 5. Selecione o repositório `kluferso/MesaDigital`
 
 ### 3. Configurar o Deploy com Docker
-Render detectará automaticamente o Dockerfile:
+Render detectará automaticamente o Dockerfile multi-stage:
 
 **Configurações automáticas:**
 - **Name**: mesa-digital
@@ -38,6 +38,12 @@ Render detectará automaticamente o Dockerfile:
 1. Clique em "Create Web Service"
 2. Aguarde o build do Docker (5-10 minutos)
 3. O Render fornecerá uma URL como: `https://mesa-digital.onrender.com`
+
+**Nota sobre o Dockerfile:**
+O Dockerfile usa multi-stage build seguindo as melhores práticas do Render:
+- Stage 1: Build do React com npm ci --legacy-peer-deps
+- Stage 2: Runtime otimizado com apenas dependências de produção
+- Imagem menor e mais eficiente
 
 ## Limitações do Plano Gratuito
 - **Sleep**: Aplicações "dormem" após 15min inatividade
