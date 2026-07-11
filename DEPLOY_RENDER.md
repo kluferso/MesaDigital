@@ -18,17 +18,17 @@
 4. Autorize o Render a acessar seu GitHub
 5. Selecione o repositório `kluferso/MesaDigital`
 
-### 3. Configurar o Deploy
-Render detectará automaticamente a configuração do package.json:
+### 3. Configurar o Deploy com Docker
+Render detectará automaticamente o Dockerfile:
 
-**Configurações manuais:**
+**Configurações automáticas:**
 - **Name**: mesa-digital
 - **Region**: Oregon (ou São Paulo se disponível)
 - **Branch**: main
 - **Plan**: Free
-- **Runtime**: Node
-- **Build Command**: `npm install && npm run build`
-- **Start Command**: `npm start`
+- **Runtime**: Docker
+- **Context**: /
+- **Dockerfile Path**: ./Dockerfile
 
 **Variáveis de ambiente (adicione manualmente):**
 - PORT: 5000
@@ -36,7 +36,7 @@ Render detectará automaticamente a configuração do package.json:
 
 ### 4. Deploy
 1. Clique em "Create Web Service"
-2. Aguarde o build (3-5 minutos)
+2. Aguarde o build do Docker (5-10 minutos)
 3. O Render fornecerá uma URL como: `https://mesa-digital.onrender.com`
 
 ## Limitações do Plano Gratuito
