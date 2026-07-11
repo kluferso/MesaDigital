@@ -1,0 +1,15 @@
+node_modules
+build
+.git
+.env
+.venv
+mobile-rn
+android
+data
+tests
+scripts
+docs
+.trae
+.vscode
+*.md
+!README.md
