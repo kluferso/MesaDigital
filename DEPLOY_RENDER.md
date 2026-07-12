@@ -23,9 +23,9 @@ O arquivo `render.yaml` configura automaticamente o deploy:
 
 **Configurações automáticas (render.yaml):**
 - **Name**: mesa-digital
-- **Environment**: Node.js
+- **Runtime**: Node.js
 - **Plan**: Free
-- **Build Command**: `npm install && npm run build`
+- **Build Command**: `npm ci && npm run build` (npm ci é recomendado pelo Render)
 - **Start Command**: `npm start`
 - **Port**: 5000
 - **Node Environment**: production
